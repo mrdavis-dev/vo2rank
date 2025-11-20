@@ -2,3 +2,4 @@ streamlit
 pandas
 requests
 python-dotenv
+psycopg2-binary

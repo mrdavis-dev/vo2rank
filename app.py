@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import requests
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import time
 from datetime import datetime, date, timedelta
 import calendar
@@ -62,69 +63,108 @@ if CLIENT_ID == "0" or CLIENT_SECRET == "0":
 
 # --- 2. Funciones de Base de Datos (SQLite) y OAuth ---
 
+def get_db_conn():
+    """Devuelve una conexión a la base de datos PostgreSQL usando DATABASE_URL."""
+    DATABASE_URL = os.getenv('DATABASE_URL') or os.getenv('database_url')
+    if not DATABASE_URL:
+        # No paramos la ejecución, pero avisamos: el resto de funciones comprobará None
+        st.error("🚨 DATABASE_URL no está configurada. Define la variable de entorno DATABASE_URL apuntando a tu Postgres.")
+        return None
+    try:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        return conn
+    except Exception as e:
+        st.error(f"Error conectando a la base de datos PostgreSQL: {e}")
+        return None
+
+
 def init_db():
     """Inicializa la base de datos y crea las tablas si no existen."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_conn()
+    if conn is None:
+        return
     cursor = conn.cursor()
     # Tabla para actividades puntuadas
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS scores (
             athlete_id INTEGER,
-            activity_id INTEGER PRIMARY KEY,
+            activity_id BIGINT PRIMARY KEY,
             firstname TEXT,
             lastname TEXT,
             gender TEXT,
             points INTEGER,
-            activity_date TEXT,
-            date_scored TEXT
+            activity_date TIMESTAMP,
+            date_scored TIMESTAMP
         )
     """)
     # Tabla para almacenar los tokens de los atletas
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS athlete_tokens (
-            athlete_id INTEGER PRIMARY KEY,
+            athlete_id BIGINT PRIMARY KEY,
             access_token TEXT,
             refresh_token TEXT,
-            expires_at INTEGER
+            expires_at BIGINT
         )
     """)
     conn.commit()
+    cursor.close()
     conn.close()
 
 @st.cache_data(ttl=5) 
 def load_ranking_data():
     """Carga todos los datos de la tabla de puntuaciones."""
     init_db()
-    conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql_query("SELECT * FROM scores", conn)
+    conn = get_db_conn()
+    if conn is None:
+        return pd.DataFrame()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM scores")
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
+    if not rows:
+        return pd.DataFrame(columns=['athlete_id','activity_id','firstname','lastname','gender','points','activity_date','date_scored'])
+    df = pd.DataFrame(rows)
     return df
 
 def get_athlete_token_data(athlete_id):
     """Busca los tokens de un atleta por ID."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_conn()
+    if conn is None:
+        return None
     cursor = conn.cursor()
-    cursor.execute("SELECT access_token, refresh_token, expires_at FROM athlete_tokens WHERE athlete_id=?", (athlete_id,))
+    cursor.execute("SELECT access_token, refresh_token, expires_at FROM athlete_tokens WHERE athlete_id=%s", (athlete_id,))
     result = cursor.fetchone()
+    cursor.close()
     conn.close()
     if result:
-        return {'access_token': result[0], 'refresh_token': result[1], 'expires_at': result[2]}
+        return {'access_token': result['access_token'], 'refresh_token': result['refresh_token'], 'expires_at': result['expires_at']}
     return None
 
 def save_athlete_tokens(athlete_id, access_token, refresh_token, expires_at):
     """Guarda o actualiza los tokens de un atleta."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_conn()
+    if conn is None:
+        return False
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR REPLACE INTO athlete_tokens 
-        VALUES (?, ?, ?, ?)
+        INSERT INTO athlete_tokens (athlete_id, access_token, refresh_token, expires_at)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (athlete_id) DO UPDATE
+        SET access_token = EXCLUDED.access_token,
+            refresh_token = EXCLUDED.refresh_token,
+            expires_at = EXCLUDED.expires_at
     """, (athlete_id, access_token, refresh_token, expires_at))
     conn.commit()
+    cursor.close()
     conn.close()
+    return True
 
 def register_activity(activity_data):
     """Registra una nueva actividad en la base de datos."""
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_conn()
+    if conn is None:
+        return False
     cursor = conn.cursor()
     values = (
         activity_data['athlete_id'], activity_data['activity_id'],
@@ -133,12 +173,15 @@ def register_activity(activity_data):
         activity_data['activity_date'], datetime.now().isoformat()
     )
     cursor.execute("""
-        INSERT OR IGNORE INTO scores 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scores (athlete_id, activity_id, firstname, lastname, gender, points, activity_date, date_scored)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (activity_id) DO NOTHING
     """, values)
     conn.commit()
+    inserted = cursor.rowcount > 0
+    cursor.close()
     conn.close()
-    return cursor.rowcount > 0 
+    return inserted
 
 def refresh_access_token(athlete_id, refresh_token):
     """Refresca el Access Token si está expirado."""
@@ -276,12 +319,37 @@ def process_and_score(access_token):
     if not activities:
         return False
     # Mostrar conteo por tipo recibido (para inspección)
-    from collections import Counter
+    from collections import Counter, defaultdict
     types_counter = Counter(a.get('type') for a in activities)
-    st.info(f"Tipos de actividad recibidos: {dict(types_counter)}")
+    st.info(f"Tipos de actividad recibidos (raw): {dict(types_counter)} | Total raw: {len(activities)}")
 
-    # Filtrar solo los tipos permitidos (Run y Walk)
-    filtered_activities = [a for a in activities if a.get('type') in ALLOWED_ACTIVITY_TYPES]
+    # Deduplicar actividades por 'id' — si hay duplicados con distintos 'type', preferir 'Run' sobre 'Walk'
+    activities_by_id = {}
+    dup_info = defaultdict(list)
+    for a in activities:
+        aid = a.get('id')
+        atype = a.get('type')
+        if aid in activities_by_id:
+            dup_info[aid].append(atype)
+            # preferir Run si aparece
+            existing = activities_by_id[aid]
+            if existing.get('type') != atype:
+                # si nuevo es Run y existente no, reemplazar
+                if atype == 'Run' and existing.get('type') != 'Run':
+                    activities_by_id[aid] = a
+        else:
+            activities_by_id[aid] = a
+
+    duplicates = {k: v for k, v in dup_info.items() if v}
+    if duplicates:
+        st.warning(f"Actividades duplicadas detectadas por id: {duplicates}")
+
+    deduped_activities = list(activities_by_id.values())
+    deduped_types = Counter(a.get('type') for a in deduped_activities)
+    st.info(f"Tipos de actividad después de dedup: {dict(deduped_types)} | Total unique: {len(deduped_activities)}")
+
+    # Filtrar solo los tipos permitidos (Run y Walk) sobre la lista deduplicada
+    filtered_activities = [a for a in deduped_activities if a.get('type') in ALLOWED_ACTIVITY_TYPES]
     if not filtered_activities:
         st.info("No hay actividades de tipo 'Run' o 'Walk' en el mes actual.")
         return False
@@ -378,13 +446,16 @@ def app():
         handle_oauth_callback(query_params['code'])
 
     if not st.session_state['logged_in']:
-        st.header("Inicio de Sesión Requerido")
-        st.warning("Para sincronizar tus actividades, debes iniciar sesión con Strava.")
         auth_url = (
             f"{AUTHORIZE_URL}?client_id={CLIENT_ID}&response_type=code"
             f"&redirect_uri={REDIRECT_URI}&scope={SCOPES}"
         )
-        st.markdown(f"[🔗 **Haz clic aquí para iniciar sesión con Strava**]({auth_url})")
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+        with col_btn2:
+            if st.button("🔗 Iniciar Sesión con Strava", use_container_width=True, type="primary"):
+                st.markdown(f"<meta http-equiv='refresh' content='0;url={auth_url}' />", unsafe_allow_html=True)
+        
+        st.warning("Para sincronizar tus actividades, debes iniciar sesión con Strava.")
 
     else:
         valid_token = get_valid_token(st.session_state['athlete_id'])
@@ -414,7 +485,17 @@ def app():
         st.markdown("")
         display_ranking(current_df, 'F', "👩 Ranking Femenino")
 
-        st.caption(f"Total de actividades puntuadas este mes: {len(current_df)}")
+        # Contar actividades únicas por atleta y por día (evita contar Run+Walk como dos si ocurren el mismo día)
+        try:
+            df_copy = current_df.copy()
+            # Normalizar usando la porción YYYY-MM-DD de activity_date para evitar problemas de zona horaria
+            # y considerar Run+Walk en la misma fecha como una sola actividad para el conteo.
+            df_copy['activity_day_str'] = df_copy['activity_date'].astype(str).str.slice(0, 10)
+            unique_count = df_copy.drop_duplicates(subset=['athlete_id', 'activity_day_str']).shape[0]
+            raw_count = len(current_df)
+            st.caption(f"Total de actividades puntuadas este mes (únicas por día/atleta): {unique_count} (filas registradas: {raw_count})")
+        except Exception:
+            st.caption(f"Total de actividades puntuadas este mes: {len(current_df)}")
 
 
 if __name__ == "__main__":
