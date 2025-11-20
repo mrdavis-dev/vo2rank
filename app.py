@@ -61,6 +61,13 @@ if CLIENT_ID == "0" or CLIENT_SECRET == "0":
     st.error("🚨 CONFIGURACIÓN FALTANTE: Configura 'CLIENT_ID' y 'CLIENT_SECRET' en .env o variables de entorno")
 
 
+st.set_page_config(
+        page_title="VO2 Ranking",
+        page_icon="🏆",
+        layout="wide",
+        initial_sidebar_state="collapsed"
+    )
+
 # --- 2. Funciones de Base de Datos (SQLite) y OAuth ---
 
 def get_db_conn():
@@ -219,7 +226,7 @@ def get_valid_token(athlete_id):
 def handle_oauth_callback(code):
     """Intercambia el código de autorización por tokens y guarda los datos del atleta."""
     # (Lógica de callback de OAuth... sin cambios, se mantiene la misma estructura)
-    st.info("Intercambiando código de autorización por tokens...")
+    # st.info("Intercambiando código de autorización por tokens...")
     payload = {'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET,
                'code': code, 'grant_type': 'authorization_code'}
     response = requests.post(TOKEN_URL, data=payload)
@@ -233,7 +240,7 @@ def handle_oauth_callback(code):
         st.session_state['current_token'] = data['access_token']
         st.session_state['athlete_name'] = f"{data['athlete']['firstname']} {data['athlete']['lastname']}"
         st.session_state['athlete_gender'] = data['athlete'].get('sex', 'N/A')
-        st.success(f"¡Bienvenido/a, {st.session_state['athlete_name']}! Autenticación exitosa.")
+        # st.success(f"¡Bienvenido/a, {st.session_state['athlete_name']}! Autenticación exitosa.")
     else:
         st.error(f"Error en la autenticación con Strava: Código {response.status_code}. Intenta de nuevo.")
         st.session_state['logged_in'] = False
@@ -433,8 +440,7 @@ def display_ranking(df, gender_code, title):
 
 def app():
     st.title("🏆 Ranking de Club - Puntos por Actividad")
-    st.markdown(f"### Solo actividades del mes: {datetime.now().strftime('%B %Y')}")
-    st.markdown("---")
+    # st.markdown(f"### Solo actividades del mes: {datetime.now().strftime('%B %Y')}")
     
     if 'logged_in' not in st.session_state:
         st.session_state['logged_in'] = False
@@ -474,16 +480,15 @@ def app():
             st.session_state['logged_in'] = False
     
     st.markdown("---")
-    
-    st.header("Ranking General del Mes Actual")
+
     current_df = load_ranking_data()
     
     if current_df.empty:
         st.info("Aún no hay actividades registradas en la base de datos para este mes.")
     else:
-        display_ranking(current_df, 'M', "👨 Ranking Masculino")
+        display_ranking(current_df, 'M', "Ranking Masculino")
         st.markdown("")
-        display_ranking(current_df, 'F', "👩 Ranking Femenino")
+        display_ranking(current_df, 'F', "Ranking Femenino")
 
         # Contar actividades únicas por atleta y por día (evita contar Run+Walk como dos si ocurren el mismo día)
         try:
@@ -493,7 +498,7 @@ def app():
             df_copy['activity_day_str'] = df_copy['activity_date'].astype(str).str.slice(0, 10)
             unique_count = df_copy.drop_duplicates(subset=['athlete_id', 'activity_day_str']).shape[0]
             raw_count = len(current_df)
-            st.caption(f"Total de actividades puntuadas este mes (únicas por día/atleta): {unique_count} (filas registradas: {raw_count})")
+            # st.caption(f"Total de actividades puntuadas este mes (únicas por día/atleta): {unique_count} (filas registradas: {raw_count})")
         except Exception:
             st.caption(f"Total de actividades puntuadas este mes: {len(current_df)}")
 
