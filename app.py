@@ -15,7 +15,7 @@ STRAVA_API_URL = "https://www.strava.com/api/v3/"
 # OAuth Endpoints
 AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 TOKEN_URL = "https://www.strava.com/oauth/token"
-REDIRECT_URI = "http://localhost:8501/" 
+REDIRECT_URI = "vo2rank.up.railway.app" 
 SCOPES = "activity:read_all,profile:read_all"
 
 # Reglas de Puntuación
