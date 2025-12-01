@@ -2,8 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar el archivo HTML
-COPY index.html /app/index.html
+# Copiar todos los archivos (HTML, CSS, JS y assets)
+COPY index.html /app/
+COPY img/ /app/img/
 
 # Crear un servidor HTTP simple con Python
 # El servidor escuchará en el puerto 8000
