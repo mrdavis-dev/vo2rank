@@ -5,3 +5,5 @@ __pycache__/
 *.pyd
 venv/
 env/
+.venv/
+backend/backend.log

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración de Registros - VO2Max</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-lg">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">Panel de Administración</h1>
+            <div class="flex gap-4">
+                <button onclick="cambiarVista('pendientes')" id="btn-pendientes" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Validar Pagos
+                </button>
+                <button onclick="cambiarVista('inscritos')" id="btn-inscritos" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Corredores Inscritos
+                </button>
+                <button onclick="cerrarSesion()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto py-8">
+        <!-- Vista de Registros Pendientes -->
+        <div id="vista-pendientes">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-8">Registros Pendientes de Validación</h2>
+
+        <!-- Tabla de Registros -->
+        <div class="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto">
+            <table class="min-w-full table-auto">
+                <thead class="bg-gray-200">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-gray-600">Código</th>
+                        <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
+                        <th class="px-4 py-2 text-left text-gray-600">Correo</th>
+                        <th class="px-4 py-2 text-left text-gray-600">Categoría</th>
+                        <th class="px-4 py-2 text-left text-gray-600">Comprobante</th>
+                        <th class="px-4 py-2 text-left text-gray-600">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="registros-table" class="divide-y divide-gray-200">
+                    <!-- Las filas se generarán dinámicamente con JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        </div>
+
+        <!-- Vista de Corredores Inscritos -->
+        <div id="vista-inscritos" class="hidden">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-8">Corredores Inscritos - Control de Dorsales y Asistencia</h2>
+            
+            <!-- Estadísticas -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <div class="text-gray-600 text-sm">Total Inscritos</div>
+                    <div class="text-3xl font-bold text-blue-600" id="stat-total">0</div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <div class="text-gray-600 text-sm">Dorsales Entregados</div>
+                    <div class="text-3xl font-bold text-green-600" id="stat-entregados">0</div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <div class="text-gray-600 text-sm">Pendientes Entrega</div>
+                    <div class="text-3xl font-bold text-orange-600" id="stat-pendientes">0</div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <div class="text-gray-600 text-sm">Asistencias</div>
+                    <div class="text-3xl font-bold text-purple-600" id="stat-asistencias">0</div>
+                </div>
+            </div>
+
+            <!-- Buscador -->
+            <div class="mb-4">
+                <input type="text" id="buscador" placeholder="Buscar por nombre, apellido o dorsal..." 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                       oninput="filtrarInscritos()">
+            </div>
+
+            <!-- Tabla de Inscritos -->
+            <div class="bg-white shadow-md rounded-lg overflow-hidden overflow-x-auto">
+                <table class="min-w-full table-auto">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-gray-600">Dorsal</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Categoría</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Correo</th>
+                            <th class="px-4 py-2 text-center text-gray-600">Dorsal Entregado</th>
+                            <th class="px-4 py-2 text-center text-gray-600">Asistió</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inscritos-table" class="divide-y divide-gray-200">
+                        <!-- Las filas se generarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ver comprobante -->
+    <div id="modalComprobante" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg p-8 max-w-4xl w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Comprobante de Pago</h2>
+                <button onclick="cerrarModal()" class="text-2xl">&times;</button>
+            </div>
+            <div id="contenidoComprobante" class="mb-6 max-h-96 overflow-auto">
+                <!-- El comprobante se cargará aquí -->
+            </div>
+            <div class="flex gap-4">
+                <button onclick="validarPago(true)" class="flex-1 bg-green-500 text-white py-2 px-4 rounded font-bold hover:bg-green-600">
+                    <i class="fas fa-check mr-2"></i> Validar Pago
+                </button>
+                <button onclick="validarPago(false)" class="flex-1 bg-red-500 text-white py-2 px-4 rounded font-bold hover:bg-red-600">
+                    <i class="fas fa-times mr-2"></i> Rechazar Pago
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? `${window.location.protocol}//${window.location.hostname}:5000`
+            : window.location.origin;
+        const API_URL = `${API_BASE}/api`;
+        let codigoActual = null;
+        let inscritosData = [];
+
+        // Verificar autenticación al cargar la página
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch(`${API_URL}/check-auth`, {
+                    credentials: 'include'
+                });
+                if (!response.ok) {
+                    window.location.href = '/admin/login.html';
+                }
+            } catch (error) {
+                console.error('Error verificando autenticación:', error);
+                window.location.href = '/admin/login.html';
+            }
+        });
+
+        // Cambiar entre vistas
+        function cambiarVista(vista) {
+            if (vista === 'pendientes') {
+                document.getElementById('vista-pendientes').classList.remove('hidden');
+                document.getElementById('vista-inscritos').classList.add('hidden');
+                document.getElementById('btn-pendientes').classList.remove('bg-gray-500');
+                document.getElementById('btn-pendientes').classList.add('bg-blue-500');
+                document.getElementById('btn-inscritos').classList.remove('bg-blue-500');
+                document.getElementById('btn-inscritos').classList.add('bg-gray-500');
+                cargarRegistros();
+            } else {
+                document.getElementById('vista-pendientes').classList.add('hidden');
+                document.getElementById('vista-inscritos').classList.remove('hidden');
+                document.getElementById('btn-pendientes').classList.remove('bg-blue-500');
+                document.getElementById('btn-pendientes').classList.add('bg-gray-500');
+                document.getElementById('btn-inscritos').classList.remove('bg-gray-500');
+                document.getElementById('btn-inscritos').classList.add('bg-blue-500');
+                cargarInscritos();
+            }
+        }
+
+        // Cargar registros pendientes
+        async function cargarRegistros() {
+            try {
+                const response = await fetch(`${API_URL}/registros-pendientes`, {
+                    credentials: 'include'
+                });
+                const registros = await response.json();
+
+                const table = document.getElementById('registros-table');
+                table.innerHTML = '';
+
+                if (registros.error || registros.length === 0) {
+                    table.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-gray-600">No hay registros pendientes</td></tr>`;
+                    return;
+                }
+
+                registros.forEach(registro => {
+                    const row = document.createElement('tr');
+                    const tieneComprobante = registro.comprobante && registro.comprobante !== 'null';
+                    
+                    row.innerHTML = `
+                        <td class="px-4 py-2 font-mono text-blue-600 text-sm">${registro.codigo_registro}</td>
+                        <td class="px-4 py-2">
+                            ${registro.nombre} ${registro.apellido}
+                            ${!tieneComprobante ? '<span class="ml-2 text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded">Sin comprobante</span>' : ''}
+                        </td>
+                        <td class="px-4 py-2 text-sm">${registro.correo}</td>
+                        <td class="px-4 py-2">${registro.categoria}</td>
+                        <td class="px-4 py-2">
+                            ${tieneComprobante ? 
+                                `<button onclick="verComprobante('${registro.codigo_registro}', '${registro.comprobante}')" 
+                                        class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                                    <i class="fas fa-eye mr-1"></i> Ver
+                                </button>` :
+                                `<span class="text-gray-400 text-sm">Esperando...</span>`
+                            }
+                        </td>
+                        <td class="px-4 py-2">
+                            ${tieneComprobante ? 
+                                `<button onclick="abrirComprobante('${registro.codigo_registro}', '${registro.comprobante}')" 
+                                        class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                                    Validar
+                                </button>` :
+                                `<span class="text-gray-400 text-sm">Pendiente</span>`
+                            }
+                        </td>
+                    `;
+                    table.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Ver comprobante
+        function verComprobante(codigo, archivo) {
+            const contenido = document.getElementById('contenidoComprobante');
+            
+            // Construir URL correcta para el comprobante
+            const filename = archivo.split('/').pop(); // Obtener solo el nombre del archivo
+            const comprobanteUrl = `${API_BASE}/comprobantes/${filename}`;
+            const ext = archivo.split('.').pop().toLowerCase();
+
+            if (['jpg', 'jpeg', 'png'].includes(ext)) {
+                contenido.innerHTML = `<img src="${comprobanteUrl}" class="w-full object-contain" style="max-height: 400px;">`;
+            } else if (ext === 'pdf') {
+                contenido.innerHTML = `<iframe src="${comprobanteUrl}" class="w-full" style="height: 400px;"></iframe>`;
+            } else {
+                contenido.innerHTML = `<p class="text-gray-600">No se puede previsualizar este archivo</p>`;
+            }
+
+            codigoActual = codigo;
+            document.getElementById('modalComprobante').classList.remove('hidden');
+        }
+
+        // Abrir modal para validar
+        function abrirComprobante(codigo, archivo) {
+            verComprobante(codigo, archivo);
+        }
+
+        // Cerrar modal
+        function cerrarModal() {
+            document.getElementById('modalComprobante').classList.add('hidden');
+        }
+
+        // Validar pago
+        async function validarPago(valido) {
+            if (!codigoActual) return;
+
+            try {
+                const response = await fetch(`${API_URL}/validar-pago`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        codigo: codigoActual,
+                        valido: valido
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    cerrarModal();
+                    cargarRegistros();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al validar el pago');
+            }
+        }
+
+        // Cerrar sesión
+        async function cerrarSesion() {
+            try {
+                await fetch(`${API_URL}/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch (error) {
+                console.error('Error al cerrar sesión:', error);
+            }
+            window.location.href = '/admin/login.html';
+        }
+
+        // Cargar corredores inscritos
+        async function cargarInscritos() {
+            try {
+                const response = await fetch(`${API_URL}/registros-inscritos`, {
+                    credentials: 'include'
+                });
+                const registros = await response.json();
+                inscritosData = registros;
+
+                const table = document.getElementById('inscritos-table');
+                table.innerHTML = '';
+
+                if (registros.error || registros.length === 0) {
+                    table.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-gray-600">No hay corredores inscritos</td></tr>`;
+                    actualizarEstadisticas(0, 0, 0);
+                    return;
+                }
+
+                // Calcular estadísticas
+                const total = registros.length;
+                const entregados = registros.filter(r => r.dorsal_entregado).length;
+                const asistencias = registros.filter(r => r.asistio).length;
+                actualizarEstadisticas(total, entregados, asistencias);
+
+                // Mostrar registros
+                mostrarInscritos(registros);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Mostrar inscritos en la tabla
+        function mostrarInscritos(registros) {
+            const table = document.getElementById('inscritos-table');
+            table.innerHTML = '';
+
+            registros.forEach(registro => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-4 py-2 font-bold text-xl text-blue-600">${registro.dorsal_formatted || registro.dorsal}</td>
+                    <td class="px-4 py-2">
+                        <div class="font-semibold">${registro.nombre} ${registro.apellido}</div>
+                        <div class="text-sm text-gray-500">${registro.team || 'Sin team'}</div>
+                    </td>
+                    <td class="px-4 py-2 text-sm">${registro.categoria}</td>
+                    <td class="px-4 py-2 text-sm">${registro.correo}</td>
+                    <td class="px-4 py-2 text-center">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" 
+                                   ${registro.dorsal_entregado ? 'checked' : ''} 
+                                   onchange="marcarEntrega('${registro.codigo_registro}', this.checked)"
+                                   class="w-6 h-6 text-green-600 rounded">
+                            <span class="ml-2 text-sm ${registro.dorsal_entregado ? 'text-green-600 font-semibold' : 'text-gray-600'}">
+                                ${registro.dorsal_entregado ? '✓ Entregado' : 'Pendiente'}
+                            </span>
+                        </label>
+                    </td>
+                    <td class="px-4 py-2 text-center">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" 
+                                   ${registro.asistio ? 'checked' : ''} 
+                                   onchange="marcarAsistencia('${registro.codigo_registro}', this.checked)"
+                                   class="w-6 h-6 text-purple-600 rounded">
+                            <span class="ml-2 text-sm ${registro.asistio ? 'text-purple-600 font-semibold' : 'text-gray-600'}">
+                                ${registro.asistio ? '✓ Presente' : 'Ausente'}
+                            </span>
+                        </label>
+                    </td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
+        // Actualizar estadísticas
+        function actualizarEstadisticas(total, entregados, asistencias) {
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-entregados').textContent = entregados;
+            document.getElementById('stat-pendientes').textContent = total - entregados;
+            document.getElementById('stat-asistencias').textContent = asistencias;
+        }
+
+        // Filtrar inscritos
+        function filtrarInscritos() {
+            const busqueda = document.getElementById('buscador').value.toLowerCase();
+            const filtrados = inscritosData.filter(registro => {
+                const nombre = `${registro.nombre} ${registro.apellido}`.toLowerCase();
+                const dorsal = registro.dorsal_formatted || registro.dorsal.toString();
+                return nombre.includes(busqueda) || dorsal.includes(busqueda);
+            });
+            mostrarInscritos(filtrados);
+        }
+
+        // Marcar entrega de dorsal
+        async function marcarEntrega(codigo, entregado) {
+            try {
+                const response = await fetch(`${API_URL}/entregar-dorsal`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ codigo: codigo })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    cargarInscritos();
+                } else {
+                    alert('Error: ' + data.error);
+                    cargarInscritos();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al marcar entrega');
+                cargarInscritos();
+            }
+        }
+
+        // Marcar asistencia
+        async function marcarAsistencia(codigo, asistio) {
+            try {
+                const response = await fetch(`${API_URL}/marcar-asistencia`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ codigo: codigo, asistio: asistio })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    cargarInscritos();
+                } else {
+                    alert('Error: ' + data.error);
+                    cargarInscritos();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al marcar asistencia');
+                cargarInscritos();
+            }
+        }
+
+        // Cargar registros al iniciar
+        cargarRegistros();
+
+        // Recargar cada 10 segundos
+        setInterval(() => {
+            if (!document.getElementById('vista-pendientes').classList.contains('hidden')) {
+                cargarRegistros();
+            } else {
+                cargarInscritos();
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

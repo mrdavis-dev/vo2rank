@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Administración VO2Max</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-2xl font-bold text-center mb-6">Login - Administración</h1>
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label for="email" class="block text-sm font-semibold text-gray-700">Correo Electrónico</label>
+                <input type="email" id="email" name="email" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-semibold text-gray-700">Contraseña</label>
+                <input type="password" id="password" name="password" required
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <button type="submit"
+                    class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg font-bold hover:bg-blue-600">
+                Iniciar Sesión
+            </button>
+        </form>
+        <p id="errorMessage" class="text-red-500 text-sm mt-4 text-center hidden">Credenciales incorrectas</p>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? `${window.location.protocol}//${window.location.hostname}:5000`
+            : window.location.origin;
+        const API_URL = `${API_BASE}/api`;
+
+        // Verificar si ya está logueado
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch(`${API_URL}/check-auth`, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    window.location.href = '/admin/index.html';
+                }
+            } catch (error) {
+                console.log('No hay sesión activa');
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMessage');
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = '/admin/index.html';
+                } else {
+                    errorMsg.textContent = result.message || 'Credenciales incorrectas';
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorMsg.textContent = 'Error al conectar con el servidor';
+                errorMsg.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

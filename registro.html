@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscripción a la Carrera del Grinch - VO2Max Team</title>
+    <!-- Incluyendo Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Configuración de fuente Inter para un look moderno */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        /* Colores temáticos de Grinch/Navidad */
+        .grinch-green { background-color: #38a169; } /* Tailwind green-600 */
+        .grinch-red { background-color: #e53e3e; } /* Tailwind red-600 */
+        .text-grinch-green { color: #38a169; }
+        .border-grinch-green { border-color: #38a169; }
+        
+        /* Estilo para el modal */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.75);
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transform: translateY(-20px);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .modal.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal.open .modal-content {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Contenedor Principal (Ahora solo formulario) -->
+    <div class="max-w-3xl w-full bg-white shadow-2xl rounded-xl overflow-hidden flex flex-col">
+        
+        <!-- Logo y Encabezado -->
+        <div class="p-6 sm:p-8 bg-white border-b border-gray-100 flex flex-col items-center">
+            <!-- Logo del Club -->
+            <img src="img/logovo2max.png" alt="Logo VO2Max Team" class="h-20 object-contain mb-4"
+                 onerror="this.onerror=null; this.src='https://placehold.co/180x80/38a169/ffffff?text=VO2MAX+LOGO'">
+
+            <h1 class="text-3xl font-extrabold text-grinch-green mb-2 text-center">
+                ¡Corre como el Grinch!
+            </h1>
+            <p class="text-base text-gray-600 text-center">
+                Completa tus datos y asegura tu lugar en la carrera navideña de VO2Max Team.
+            </p>
+            
+            <!-- Información de la Carrera -->
+            <div class="mt-4 bg-green-50 p-4 rounded-lg border border-green-200 text-left w-full max-w-md">
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-calendar-alt text-green-600 mt-1"></i>
+                        <div><span class="font-semibold">Fecha:</span> 21 de diciembre de 2025</div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-clock text-green-600 mt-1"></i>
+                        <div><span class="font-semibold">Hora:</span> Desde las 6:00 a.m.</div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-map-marker-alt text-green-600 mt-1"></i>
+                        <div><span class="font-semibold">Lugar:</span> Cancha de San Pablo Viejo, David, Chiriquí</div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-route text-green-600 mt-1"></i>
+                        <div><span class="font-semibold">Distancias:</span> 5K adultos, Kids Race 200, 500, 1K</div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-dollar-sign text-green-600 mt-1"></i>
+                        <div>
+                            <span class="font-semibold">Valor de inscripción:</span><br>
+                            Adultos: $12 | Niños: $5
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="text-sm text-red-600 font-semibold mt-3 text-center">
+                *Instrucciones de pago serán enviadas a tu correo electrónico.*
+            </p>
+        </div>
+
+        <div class="p-8 sm:p-10 bg-gray-50 flex-grow">
+            <form id="registrationForm" class="space-y-6">
+                <!-- Nombre y Apellido -->
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1">
+                        <label for="nombre" class="block text-sm font-semibold text-gray-700">Nombre</label>
+                        <input type="text" id="nombre" name="nombre" required
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green transition duration-150">
+                    </div>
+                    <div class="flex-1">
+                        <label for="apellido" class="block text-sm font-semibold text-gray-700">Apellido</label>
+                        <input type="text" id="apellido" name="apellido" required
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green transition duration-150">
+                    </div>
+                </div>
+
+                <!-- Edad y Género -->
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1">
+                        <label for="edad" class="block text-sm font-semibold text-gray-700">Edad</label>
+                        <input type="number" id="edad" name="edad" required min="0" max="99"
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green transition duration-150" oninput="updateCategory()">
+                    </div>
+                    <div class="flex-1">
+                        <label for="genero" class="block text-sm font-semibold text-gray-700">Género</label>
+                        <select id="genero" name="genero" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green appearance-none transition duration-150">
+                            <option value="">Seleccione</option>
+                            <option value="Femenino">Femenino</option>
+                            <option value="Masculino">Masculino</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Correo y Team -->
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <div class="flex-1">
+                        <label for="correo" class="block text-sm font-semibold text-gray-700">Correo Electrónico</label>
+                        <input type="email" id="correo" name="correo" required
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green transition duration-150">
+                    </div>
+                    <div class="flex-1">
+                        <label for="team" class="block text-sm font-semibold text-gray-700">Team / Club (Opcional)</label>
+                        <input type="text" id="team" name="team"
+                               class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green transition duration-150">
+                    </div>
+                </div>
+
+                <!-- Categoría de Carrera (Actualizada por JS) -->
+                <div>
+                    <label for="categoria" class="block text-sm font-semibold text-gray-700">Categoría de Carrera</label>
+                    <select id="categoria" name="categoria" required
+                            class="mt-1 block w-full px-4 py-2 border border-gray-300 bg-white rounded-lg shadow-sm focus:ring-grinch-green focus:border-grinch-green appearance-none transition duration-150">
+                        <!-- Las opciones se poblarán o seleccionarán con JavaScript -->
+                        <option value="">Ingresa tu edad para ver las categorías</option>
+                    </select>
+                    <p id="category-info" class="mt-2 text-xs text-grinch-green font-medium"></p>
+                </div>
+
+                <!-- Botón de Inscripción -->
+                <button type="submit"
+                        class="w-full grinch-green text-white py-3 px-4 rounded-lg font-bold text-lg shadow-xl hover:bg-green-700 transition duration-300 transform hover:scale-[1.01] flex items-center justify-center">
+                    <i class="fas fa-running mr-2"></i> Registrar y Recibir Pasos de Pago
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para mostrar los datos recopilados (Simulación de envío por correo) -->
+    <div id="dataModal" class="modal fixed inset-0 flex items-center justify-center opacity-0 pointer-events-none z-50">
+        <div class="modal-content bg-white p-8 rounded-xl shadow-2xl max-w-lg w-full m-4">
+            <h3 class="text-2xl font-bold text-grinch-green mb-4 border-b pb-2">¡Pre-Inscripción Exitosa!</h3>
+            <p class="text-gray-700 mb-4">
+                Tus datos han sido capturados. En breve recibirás un correo electrónico con los **detalles y métodos de pago** para confirmar tu participación en la **Carrera del Grinch**.
+            </p>
+            
+            <div id="formDataDisplay" class="bg-gray-100 p-4 rounded-lg text-sm space-y-1">
+                <!-- Los datos se insertarán aquí -->
+                <p class="font-semibold text-gray-800">Datos registrados:</p>
+            </div>
+
+            <button onclick="closeModal()"
+                    class="mt-6 w-full grinch-green text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700 transition duration-150">
+                Aceptar y Revisar Correo
+            </button>
+        </div>
+    </div>
+
+    <!-- Script de lógica de formulario, categorías y modal -->
+    <script>
+        // Funciones auxiliares para el modal
+        const modal = document.getElementById('dataModal');
+        const formDataDisplay = document.getElementById('formDataDisplay');
+
+        function openModal(data) {
+            // Mapear los datos a un formato legible en el modal
+            let htmlContent = '<p class="font-semibold text-gray-800 mb-2">Datos registrados:</p>';
+            for (const [key, value] of Object.entries(data)) {
+                // Formatear las claves para que sean más legibles
+                const displayKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+                htmlContent += `<p><span class="font-semibold">${displayKey}:</span> ${value}</p>`;
+            }
+            formDataDisplay.innerHTML = htmlContent;
+
+            // Mostrar el modal
+            modal.classList.add('open');
+            modal.style.opacity = 1;
+            modal.style.pointerEvents = 'auto';
+        }
+
+        function closeModal() {
+            // Ocultar el modal
+            modal.classList.remove('open');
+            modal.style.opacity = 0;
+            modal.style.pointerEvents = 'none';
+        }
+
+        // Función para manejar la lógica de la categoría de carrera
+        function updateCategory() {
+            const ageInput = document.getElementById('edad');
+            const categorySelect = document.getElementById('categoria');
+            const infoText = document.getElementById('category-info');
+            const age = parseInt(ageInput.value);
+
+            // Limpiar opciones anteriores
+            categorySelect.innerHTML = '';
+            infoText.textContent = '';
+
+            if (isNaN(age) || age < 0) {
+                categorySelect.innerHTML = '<option value="">Ingresa tu edad para ver las categorías</option>';
+                infoText.textContent = 'Por favor, ingresa una edad válida.';
+                return;
+            }
+
+            // Lógica de asignación de categorías
+            let optionsHtml = '';
+            let currentCategory = '';
+
+            if (age >= 14) {
+                // Participante de 5K (a partir de 14 años, asumiendo una edad mínima estándar para 5K)
+                currentCategory = '5K - Carrera Principal';
+                optionsHtml = `<option value="5K" selected>${currentCategory}</option>`;
+                infoText.textContent = '¡Genial! Estás inscrito en la carrera principal de 5K.';
+
+            } else if (age >= 10) {
+                // Kid Race 10-13 años
+                currentCategory = 'Kid Race (10-13 años) - 1K';
+                optionsHtml = `<option value="Kid_10-13" selected>${currentCategory}</option>`;
+                infoText.textContent = '¡A correr 1K! Categoría: 10-13 años.';
+
+            } else if (age >= 7) {
+                // Kid Race 7-9 años
+                currentCategory = 'Kid Race (7-9 años) - 500 mtrs';
+                optionsHtml = `<option value="Kid_7-9" selected>${currentCategory}</option>`;
+                infoText.textContent = '¡A correr 500 metros! Categoría: 7-9 años.';
+
+            } else if (age >= 0) {
+                // Kid Race 0-6 años
+                currentCategory = 'Kid Race (0-6 años) - 200 mtrs';
+                optionsHtml = `<option value="Kid_0-6" selected>${currentCategory}</option>`;
+                infoText.textContent = '¡A correr 200 metros! Categoría: 0-6 años.';
+            }
+
+            categorySelect.innerHTML = optionsHtml;
+        }
+
+        // Inicializar la categoría al cargar
+        document.addEventListener('DOMContentLoaded', updateCategory);
+
+        // Manejo del envío del formulario
+        document.getElementById('registrationForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Detiene el envío real del formulario
+            
+            // Recopilar datos
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+
+            // Enviar al backend
+            const API_BASE = window.location.hostname === 'localhost' 
+                ? `${window.location.protocol}//${window.location.hostname}:5000`
+                : window.location.origin;
+            const apiUrl = `${API_BASE}/api/registrar-corredor`;
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    openModal(result);
+                    // Limpiar formulario
+                    document.getElementById('registrationForm').reset();
+                    updateCategory();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al enviar el registro');
+            });
+        });
+    </script>
+</body>
+</html>

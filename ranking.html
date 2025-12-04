@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados de la Carrera Endurance Run</title>
+    <!-- Carga de Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos generales para la fuente y el fondo */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Gris claro de fondo */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        /* Clase para el botón activo */
+        .tab-active {
+            background-color: #3b82f6; /* Azul brillante */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        /* Estilo para hacer la tabla desplazable horizontalmente en pantallas pequeñas */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        /* Estilo para asegurar que el contenido dentro de las celdas no se desborde */
+        .table-container table {
+            min-width: 700px; /* Ancho mínimo para la tabla en móvil */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="w-full max-w-5xl bg-white shadow-xl rounded-xl p-4 md:p-8 mt-4">
+        
+        <!-- Logo -->
+        <div class="flex justify-center mb-4">
+            <img src="img/logovo2max.png" alt="VO2MAX Logo" class="h-24 md:h-32 object-contain">
+        </div>
+
+        <!-- Título principal -->
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 text-center">
+            ENDURANCE RUN
+        </h1>
+        <p class="text-lg text-gray-500 mb-6 text-center">
+            Tabla de Resultados Oficiales por Categoría
+        </p>
+
+        <!-- Contenedor de Pestañas/Filtros -->
+        <div class="flex flex-wrap justify-center space-x-2 md:space-x-4 mb-6" id="tabs-container">
+            <button data-distance="5K" class="tab-button tab-active px-4 py-2 text-sm md:text-base font-semibold rounded-lg transition duration-150 ease-in-out hover:bg-blue-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                5 Kilómetros
+            </button>
+            <button data-distance="10K" class="tab-button px-4 py-2 text-sm md:text-base font-semibold text-gray-700 bg-gray-200 rounded-lg transition duration-150 ease-in-out hover:bg-blue-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                10 Kilómetros
+            </button>
+            <button data-distance="21K" class="tab-button px-4 py-2 text-sm md:text-base font-semibold text-gray-700 bg-gray-200 rounded-lg transition duration-150 ease-in-out hover:bg-blue-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                21 Kilómetros
+            </button>
+        </div>
+
+        <!-- Contenedor de la Tabla de Resultados -->
+        <div class="table-container shadow-md rounded-lg border border-gray-100">
+            <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                    <tr>
+                        <th scope="col" class="py-3 px-3 md:px-6">Pos. G.</th>
+                        <th scope="col" class="py-3 px-3 md:px-6">Dorsal</th>
+                        <th scope="col" class="py-3 px-3 md:px-6">Nombre</th>
+                        <th scope="col" class="py-3 px-3 md:px-6">Cat.</th>
+                        <th scope="col" class="py-3 px-3 md:px-6">Pos. Cat.</th>
+                        <th scope="col" class="py-3 px-3 md:px-6">Tiempo</th>
+                    </tr>
+                </thead>
+                <tbody id="results-table-body">
+                    <!-- Los resultados se inyectarán aquí por JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Leyenda -->
+        <p class="text-xs text-gray-400 mt-4 text-center">
+            Pos. G. = Posición General | Cat. = Categoría | Pos. Cat. = Posición en Categoría
+        </p>
+
+    </div>
+
+    <script>
+        // Datos extraídos y estructurados del PDF
+        const resultsData = {
+            '5K': [
+                { 'Pos. G.': 1, Dorsal: '013', Nombre: 'Alexander Girón', Cat: 'M 18-29', 'Pos. Cat.': 1, Tiempo: 'N/D' },
+                { 'Pos. G.': 2, Dorsal: '018', Nombre: 'Leythan Ríos', Cat: 'M 0-10', 'Pos. Cat.': 1, Tiempo: '26:25' },
+                { 'Pos. G.': 3, Dorsal: '004', Nombre: 'Alexander Caballero', Cat: 'M 18-29', 'Pos. Cat.': 2, Tiempo: '27:29' },
+                { 'Pos. G.': 4, Dorsal: '026', Nombre: 'Laura Calfs', Cat: 'F 18-29', 'Pos. Cat.': 1, Tiempo: '29:11' },
+                { 'Pos. G.': 5, Dorsal: '027', Nombre: 'Arnulfo Guerra', Cat: 'M 30-39', 'Pos. Cat.': 1, Tiempo: '29:13' },
+                { 'Pos. G.': 6, Dorsal: '009', Nombre: 'Daniel Miranda', Cat: 'M 18-29', 'Pos. Cat.': 3, Tiempo: '30:07' },
+                { 'Pos. G.': 7, Dorsal: '089', Nombre: 'Juan J Quintero', Cat: 'M 30-39', 'Pos. Cat.': 2, Tiempo: '30:11' },
+                { 'Pos. G.': 8, Dorsal: '003', Nombre: 'Hamid Cerrud Loo', Cat: 'M 18-29', 'Pos. Cat.': 4, Tiempo: '30:40' },
+                { 'Pos. G.': 9, Dorsal: '033', Nombre: 'Katherine Aguilar', Cat: 'F 18-29', 'Pos. Cat.': 2, Tiempo: '30:56' },
+                { 'Pos. G.': 10, Dorsal: '010', Nombre: 'Andrea Cáceres', Cat: 'F 30-39', 'Pos. Cat.': 1, Tiempo: '31:28' },
+                { 'Pos. G.': 11, Dorsal: '008', Nombre: 'Lurdes Morales', Cat: 'F 40-49', 'Pos. Cat.': 1, Tiempo: '34:05' },
+                { 'Pos. G.': 12, Dorsal: '029', Nombre: 'María Marquinez', Cat: 'F 18-29', 'Pos. Cat.': 3, Tiempo: '34:50' },
+                { 'Pos. G.': 13, Dorsal: '030', Nombre: 'Yanid Marquinez', Cat: 'F 30-39', 'Pos. Cat.': 2, Tiempo: '35:17' },
+                { 'Pos. G.': 14, Dorsal: '059', Nombre: 'Wendy Marquinez', Cat: 'F 30-39', 'Pos. Cat.': 3, Tiempo: '36:10' },
+                { 'Pos. G.': 15, Dorsal: '014', Nombre: 'Melody Aráuz', Cat: 'F 18-29', 'Pos. Cat.': 4, Tiempo: '37:07' },
+                { 'Pos. G.': 16, Dorsal: '001', Nombre: 'Katherine Ocampo', Cat: 'F 18-29', 'Pos. Cat.': 5, Tiempo: '37:42' },
+                { 'Pos. G.': 17, Dorsal: '017', Nombre: 'Larissa Saldaña', Cat: 'F 18-29', 'Pos. Cat.': 6, Tiempo: '38:08' },
+                { 'Pos. G.': 18, Dorsal: '025', Nombre: 'Madeline Ovalles', Cat: 'F 18-29', 'Pos. Cat.': 7, Tiempo: '38:34' },
+                { 'Pos. G.': 19, Dorsal: '011', Nombre: 'Carlos Cuevas', Cat: 'M 30-39', 'Pos. Cat.': 3, Tiempo: '38:58' },
+                { 'Pos. G.': 20, Dorsal: '028', Nombre: 'Orlando Montenegro', Cat: 'M 40-49', 'Pos. Cat.': 1, Tiempo: '39:00' },
+                { 'Pos. G.': 21, Dorsal: '012', Nombre: 'Eduardo Cuevas', Cat: 'M 30-39', 'Pos. Cat.': 4, Tiempo: '40:08' },
+                { 'Pos. G.': 22, Dorsal: '023', Nombre: 'Gissel Ortega', Cat: 'F 30-39', 'Pos. Cat.': 4, Tiempo: '41:33' },
+                { 'Pos. G.': 23, Dorsal: '061', Nombre: 'Taydis Jiménez', Cat: 'F 18-29', 'Pos. Cat.': 8, Tiempo: '41:43' },
+                { 'Pos. G.': 24, Dorsal: '099', Nombre: 'Michael Villamontes', Cat: 'M 30-39', 'Pos. Cat.': 5, Tiempo: '44:46' },
+                { 'Pos. G.': 25, Dorsal: '031', Nombre: 'Asihley Yangues', Cat: 'F 18-29', 'Pos. Cat.': 9, Tiempo: '45:01' },
+                { 'Pos. G.': 26, Dorsal: '024', Nombre: 'Riquelmer Morales', Cat: 'M 18-29', 'Pos. Cat.': 5, Tiempo: '45:33' },
+                { 'Pos. G.': 27, Dorsal: '019', Nombre: 'Cristian Mojica', Cat: 'M 30-39', 'Pos. Cat.': 6, Tiempo: '45:50' },
+                { 'Pos. G.': 28, Dorsal: '007', Nombre: 'María Silvera', Cat: 'F 18-29', 'Pos. Cat.': 10, Tiempo: '46:05' },
+                { 'Pos. G.': 29, Dorsal: '037', Nombre: 'Arleth Corella', Cat: 'F0-10', 'Pos. Cat.': 1, Tiempo: '47:42' },
+                { 'Pos. G.': 30, Dorsal: '020', Nombre: 'Paola Cáceres', Cat: 'F 18-29', 'Pos. Cat.': 11, Tiempo: '49:11' },
+                { 'Pos. G.': 31, Dorsal: '032', Nombre: 'Emili Espinoza', Cat: 'F 18-29', 'Pos. Cat.': 12, Tiempo: '49:11' },
+                { 'Pos. G.': 32, Dorsal: '038', Nombre: 'Ayed Tabel Waked', Cat: 'M 50-59', 'Pos. Cat.': 1, Tiempo: '49:11' },
+                { 'Pos. G.': 33, Dorsal: '034', Nombre: 'Salem Almengor', Cat: 'F 18-29', 'Pos. Cat.': 13, Tiempo: '49:14' },
+                { 'Pos. G.': 34, Dorsal: '035', Nombre: 'Crislin Nuñez', Cat: 'F 18-29', 'Pos. Cat.': 14, Tiempo: '50:09' },
+                { 'Pos. G.': 35, Dorsal: '002', Nombre: 'Katiuska Chávez', Cat: 'F 30-39', 'Pos. Cat.': 5, Tiempo: '45:33' },
+                { 'Pos. G.': 36, Dorsal: '022', Nombre: 'Ana Saldaña', Cat: 'F 18-29', 'Pos. Cat.': 15, Tiempo: '55:39' },
+                { 'Pos. G.': 37, Dorsal: '021', Nombre: 'Maylin González', Cat: 'F 30-39', 'Pos. Cat.': 6, Tiempo: '55:39' },
+                { 'Pos. G.': 38, Dorsal: '036', Nombre: 'Alexa', Cat: 'F0-10', 'Pos. Cat.': 1, Tiempo: '1:16:18' },
+                { 'Pos. G.': 39, Dorsal: '037', Nombre: 'Arleth Corella', Cat: 'F0-10', 'Pos. Cat.': 1, Tiempo: '45:33' }
+            ],
+            '10K': [
+                { 'Pos. G.': 1, Dorsal: '100', Nombre: 'Edgar Serracin', Cat: 'M 18-29', 'Pos. Cat.': 1, Tiempo: '41:16' },
+                { 'Pos. G.': 2, Dorsal: '041', Nombre: 'Geral Méndez', Cat: 'M 18-29', 'Pos. Cat.': 2, Tiempo: '41:42' },
+                { 'Pos. G.': 3, Dorsal: '048', Nombre: 'Francisco Miranda', Cat: 'M 18-29', 'Pos. Cat.': 3, Tiempo: '48:44' },
+                { 'Pos. G.': 4, Dorsal: '050', Nombre: 'Hanna Quintero', Cat: 'F 30-39', 'Pos. Cat.': 1, Tiempo: '47:42' },
+                { 'Pos. G.': 5, Dorsal: '093', Nombre: 'Gabriela De Gracia', Cat: 'F 30-39', 'Pos. Cat.': 2, Tiempo: '50:59' },
+                { 'Pos. G.': 6, Dorsal: '094', Nombre: 'Víctor Saldaña', Cat: 'M 30-39', 'Pos. Cat.': 1, Tiempo: '50:59' },
+                { 'Pos. G.': 7, Dorsal: '076', Nombre: 'Bartolo Santos', Cat: 'M 40-41', 'Pos. Cat.': 1, Tiempo: '53:36' },
+                { 'Pos. G.': 8, Dorsal: '072', Nombre: 'Viviana Concepción', Cat: 'F 18-29', 'Pos. Cat.': 1, Tiempo: '54:10' },
+                { 'Pos. G.': 9, Dorsal: '060', Nombre: 'Sofía Cáceres', Cat: 'F 30-39', 'Pos. Cat.': 3, Tiempo: '54:15' },
+                { 'Pos. G.': 10, Dorsal: '016', Nombre: 'Erick Madrid', Cat: 'M 18-29', 'Pos. Cat.': 4, Tiempo: '54:32' },
+                { 'Pos. G.': 11, Dorsal: '043', Nombre: 'Sophia Rosario', Cat: 'F 40-49', 'Pos. Cat.': 1, Tiempo: '55:23' },
+                { 'Pos. G.': 12, Dorsal: '042', Nombre: 'Elena Delgado', Cat: 'F 30-39', 'Pos. Cat.': 4, Tiempo: '55:23' },
+                { 'Pos. G.': 13, Dorsal: '055', Nombre: 'Danny Campaña', Cat: 'M40-49', 'Pos. Cat.': 2, Tiempo: '57:19' },
+                { 'Pos. G.': 14, Dorsal: '057', Nombre: 'Julio Martínez', Cat: 'M18-29', 'Pos. Cat.': 5, Tiempo: '58:24' },
+                { 'Pos. G.': 15, Dorsal: '066', Nombre: 'Néstor Morales', Cat: 'M40-49', 'Pos. Cat.': 3, Tiempo: '59:22' },
+                { 'Pos. G.': 16, Dorsal: '096', Nombre: 'Jorge González', Cat: 'M18-29', 'Pos. Cat.': 5, Tiempo: '59:55' },
+                { 'Pos. G.': 17, Dorsal: '095', Nombre: 'Natalia Pitti', Cat: 'F 18-29', 'Pos. Cat.': 2, Tiempo: '59:55' },
+                { 'Pos. G.': 18, Dorsal: '051', Nombre: 'Froilán Miranda', Cat: 'M18-29', 'Pos. Cat.': 6, Tiempo: '1:03:50' },
+                { 'Pos. G.': 19, Dorsal: '090', Nombre: 'Vera Caballero', Cat: 'F50-49', 'Pos. Cat.': 1, Tiempo: '1:04:01' },
+                { 'Pos. G.': 20, Dorsal: '040', Nombre: 'Edgar Fabio Aparicio', Cat: 'M30-39', 'Pos. Cat.': 5, Tiempo: '1:04:45' },
+                { 'Pos. G.': 21, Dorsal: '062', Nombre: 'Génesis Ortega', Cat: 'F18-29', 'Pos. Cat.': 3, Tiempo: '1:04:59' },
+                { 'Pos. G.': 22, Dorsal: '052', Nombre: 'Soribeth Ortiz', Cat: 'F 30-39', 'Pos. Cat.': 6, Tiempo: '1:06:03' },
+                { 'Pos. G.': 23, Dorsal: '039', Nombre: 'David Flores', Cat: 'F 18-29', 'Pos. Cat.': 7, Tiempo: '1:07:54' },
+                { 'Pos. G.': 24, Dorsal: '046', Nombre: 'Melvis Acosta', Cat: 'F18-29', 'Pos. Cat.': 6, Tiempo: '1:10:19' },
+                { 'Pos. G.': 25, Dorsal: '045', Nombre: 'Kyriam Cianca', Cat: 'F30-38', 'Pos. Cat.': 7, Tiempo: '1:15:23' },
+                { 'Pos. G.': 26, Dorsal: '98', Nombre: 'Tairis Giménez', Cat: 'M 18-29', 'Pos. Cat.': 7, Tiempo: '1:15:53' },
+                { 'Pos. G.': 27, Dorsal: '063', Nombre: 'Angie Saldaña', Cat: 'F18-29', 'Pos. Cat.': 8, Tiempo: '1:41:10' }
+            ],
+            '21K': [
+                { 'Pos. G.': 1, Dorsal: '056', Nombre: 'Jazer Ureña', Cat: 'M30-39', 'Pos. Cat.': 1, Tiempo: '1:21:44' }, // Corregido el tiempo
+                { 'Pos. G.': 2, Dorsal: '078', Nombre: 'Sergio Contreras', Cat: 'M 18-29', 'Pos. Cat.': 1, Tiempo: '1:28:11' },
+                { 'Pos. G.': 3, Dorsal: '084', Nombre: 'Cristian de León', Cat: 'M30-39', 'Pos. Cat.': 2, Tiempo: '1:32:05' },
+                { 'Pos. G.': 4, Dorsal: '87', Nombre: 'Gyovanny Guerra', Cat: 'M18-29', 'Pos. Cat.': 2, Tiempo: '1:32:07' },
+                { 'Pos. G.': 5, Dorsal: '070', Nombre: 'Elíseo Moreno', Cat: 'M18-29', 'Pos. Cat.': 3, Tiempo: '1:35:02' },
+                { 'Pos. G.': 6, Dorsal: '073', Nombre: 'Gerardo Vega', Cat: 'M30-39', 'Pos. Cat.': 3, Tiempo: '1:35:02' },
+                { 'Pos. G.': 7, Dorsal: '064', Nombre: 'Janeiro Gordón', Cat: 'M18-29', 'Pos. Cat.': 4, Tiempo: '1:36:45' },
+                { 'Pos. G.': 8, Dorsal: '044', Nombre: 'Juan Moreno', Cat: 'M30-39', 'Pos. Cat.': 4, Tiempo: '1:54:46' },
+                { 'Pos. G.': 9, Dorsal: '077', Nombre: 'Jonathan Rodríguez', Cat: 'M40-49', 'Pos. Cat.': 1, Tiempo: '1:56:29' },
+                { 'Pos. G.': 10, Dorsal: '015', Nombre: 'Diana Guerra', Cat: 'F40-49', 'Pos. Cat.': 1, Tiempo: '2:00:33' },
+                { 'Pos. G.': 11, Dorsal: '088', Nombre: 'Lorenzo Giménez', Cat: 'M50-59', 'Pos. Cat.': 1, Tiempo: '2:01:04' },
+                { 'Pos. G.': 12, Dorsal: '075', Nombre: 'Nailen Quiróz', Cat: 'F18-29', 'Pos. Cat.': 1, Tiempo: '2:04:38' },
+                { 'Pos. G.': 13, Dorsal: '079', Nombre: 'Danibeth Rodríguez', Cat: 'M40-49', 'Pos. Cat.': 2, Tiempo: '2:05:25' },
+                { 'Pos. G.': 14, Dorsal: '085', Nombre: 'Augusto Giménez', Cat: 'M50-59', 'Pos. Cat.': 2, Tiempo: '2:07:47' },
+                { 'Pos. G.': 15, Dorsal: '071', Nombre: 'Benjamín García', Cat: 'M40-49', 'Pos. Cat.': 2, Tiempo: '2:10:21' },
+                { 'Pos. G.': 16, Dorsal: '074', Nombre: 'Ricardo Giménez', Cat: 'M18-29', 'Pos. Cat.': 4, Tiempo: '2:11:25' },
+                { 'Pos. G.': 17, Dorsal: '083', Nombre: 'Margel Castillo', Cat: 'F30-39', 'Pos. Cat.': 1, Tiempo: '2:12:09' },
+                { 'Pos. G.': 18, Dorsal: '092', Nombre: 'Iveth Moreno', Cat: 'F50-59', 'Pos. Cat.': 1, Tiempo: '2:13:41' },
+                { 'Pos. G.': 19, Dorsal: '086', Nombre: 'Héctor Miranda', Cat: 'M40-49', 'Pos. Cat.': 3, Tiempo: '2:14:51' },
+                { 'Pos. G.': 20, Dorsal: '047', Nombre: 'Virgilio Pitti', Cat: 'M30-39', 'Pos. Cat.': 1, Tiempo: '1:48:05' },
+                { 'Pos. G.': 21, Dorsal: '081', Nombre: 'Enrique Giménez', Cat: 'M40-49', 'Pos. Cat.': 4, Tiempo: '2:27:17' },
+                { 'Pos. G.': 22, Dorsal: '080', Nombre: 'Nehil Samudio', Cat: 'M30-39', 'Pos. Cat.': 5, Tiempo: '2:32:11' },
+                { 'Pos. G.': 23, Dorsal: '091', Nombre: 'Anaís Montenegro', Cat: 'F40-49', 'Pos. Cat.': 3, Tiempo: '2:32:12' }
+            ]
+        };
+
+        const tableBody = document.getElementById('results-table-body');
+        const tabButtons = document.querySelectorAll('.tab-button');
+
+        /**
+         * Renderiza la tabla de resultados para la distancia seleccionada.
+         * @param {string} distance - La clave de la distancia ('5K', '10K', '21K').
+         */
+        function displayResults(distance) {
+            const data = resultsData[distance] || [];
+            tableBody.innerHTML = ''; // Limpiar la tabla
+
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-400">No hay datos disponibles para esta distancia.</td></tr>';
+                return;
+            }
+
+            // Generar las filas de la tabla
+            const html = data.map((runner, index) => {
+                // Alternar colores de fila para mejor legibilidad
+                const rowClass = index % 2 === 0 ? 'bg-white border-b' : 'bg-gray-50 border-b';
+                
+                // Determinar el color de la posición general (Top 3 destacados)
+                let posClass = 'text-gray-900 font-medium';
+                if (runner['Pos. G.'] === 1) posClass = 'text-green-600 font-extrabold text-lg';
+                else if (runner['Pos. G.'] === 2) posClass = 'text-blue-600 font-bold';
+                else if (runner['Pos. G.'] === 3) posClass = 'text-purple-600 font-semibold';
+                
+                return `
+                    <tr class="${rowClass} hover:bg-gray-100">
+                        <td class="py-3 px-3 md:px-6 ${posClass}">${runner['Pos. G.']}</td>
+                        <td class="py-3 px-3 md:px-6 text-gray-700">${runner.Dorsal}</td>
+                        <td class="py-3 px-3 md:px-6 text-gray-900 font-medium whitespace-nowrap">${runner.Nombre}</td>
+                        <td class="py-3 px-3 md:px-6 text-gray-600">${runner.Cat}</td>
+                        <td class="py-3 px-3 md:px-6 text-gray-700">${runner['Pos. Cat.']}</td>
+                        <td class="py-3 px-3 md:px-6 text-gray-900 font-bold">${runner.Tiempo}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tableBody.innerHTML = html;
+        }
+
+        /**
+         * Maneja el cambio de pestaña y actualiza el estilo de los botones.
+         * @param {string} newDistance - La nueva distancia seleccionada.
+         */
+        function handleTabClick(newDistance) {
+            // Actualizar el estilo de los botones
+            tabButtons.forEach(button => {
+                const distance = button.getAttribute('data-distance');
+                if (distance === newDistance) {
+                    button.classList.add('tab-active');
+                    button.classList.remove('bg-gray-200', 'text-gray-700');
+                } else {
+                    button.classList.remove('tab-active');
+                    button.classList.add('bg-gray-200', 'text-gray-700');
+                }
+            });
+
+            // Mostrar los resultados de la nueva distancia
+            displayResults(newDistance);
+        }
+
+        /**
+         * Inicialización de la aplicación: añade listeners y muestra la primera tabla.
+         */
+        function initApp() {
+            // Asignar listeners a los botones de las pestañas
+            tabButtons.forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const distance = event.currentTarget.getAttribute('data-distance');
+                    handleTabClick(distance);
+                });
+            });
+
+            // Mostrar la tabla de 5K por defecto
+            displayResults('5K');
+        }
+
+        // Iniciar la aplicación cuando la página esté completamente cargada
+        window.onload = initApp;
+
+    </script>
+
+</body>
+</html>
