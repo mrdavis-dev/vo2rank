@@ -33,4 +33,4 @@ RUN mkdir -p backend/comprobantes
 EXPOSE 8000
 
 # Ejecutar con gunicorn para producción
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 backend.app:app
+CMD gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120 backend.app:app
