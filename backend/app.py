@@ -15,7 +15,7 @@ import hashlib
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='..', static_url_path='')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 CORS(app, supports_credentials=True)
 
@@ -297,6 +297,20 @@ def cambiar_password():
 
 # ===== ENDPOINTS PÚBLICOS =====
 
+# Endpoint: Servir página principal
+@app.route('/')
+def serve_index():
+    """Sirve la página principal"""
+    return send_from_directory('.', 'index.html')
+
+# Endpoint: Servir archivos HTML
+@app.route('/<path:filename>')
+def serve_static(filename):
+    """Sirve archivos estáticos HTML, CSS, JS, imágenes"""
+    if filename.endswith('.html'):
+        return send_from_directory('.', filename)
+    return send_from_directory('.', filename)
+
 # Endpoint: Servir archivos de comprobantes
 @app.route('/comprobantes/<path:filename>')
 @require_auth
@@ -429,7 +443,7 @@ def registrar_corredor():
                 <p>Tu pre-registro ha sido completado exitosamente. Tu código de registro es:</p>
                 <h3 style="color: #38a169;">{codigo_registro}</h3>
                 <p>Ahora debes completar tu registro subiendo el comprobante de pago en el siguiente enlace:</p>
-                <p><a href="http://localhost:8000/validacion.html?codigo={codigo_registro}" style="background-color: #38a169; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Subir Comprobante</a></p>
+                <p><a href="https://vo2maxproject.up.railway.app/validacion.html?codigo={codigo_registro}" style="background-color: #38a169; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Subir Comprobante</a></p>
                 <h4>Métodos de Pago:</h4>
                 <ul>
                     <li><strong>Yappy:</strong> +507 6974-8190</li>
@@ -522,7 +536,7 @@ def subir_comprobante():
                     <p><strong>Corredor:</strong> {corredor[1]} {corredor[2]}</p>
                     <p><strong>Correo:</strong> {corredor[0]}</p>
                     <p>Por favor valida el comprobante en el panel de administración.</p>
-                    <p><a href="http://localhost:8000/admin/index.html" style="background-color: #38a169; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel de Admin</a></p>
+                    <p><a href="https://vo2maxproject.up.railway.app/admin/index.html" style="background-color: #38a169; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel de Admin</a></p>
                 </body>
             </html>
             """
@@ -702,7 +716,7 @@ def validar_pago():
                                 <li>Asegúrate de que sea del monto correcto</li>
                                 <li>Intenta subir el comprobante nuevamente</li>
                             </ul>
-                            <p><a href="http://localhost:8000/validacion.html?codigo={codigo}">Subir Nuevo Comprobante</a></p>
+                            <p><a href="https://vo2maxproject.up.railway.app/validacion.html?codigo={codigo}">Subir Nuevo Comprobante</a></p>
                             <p>VO2Max Team</p>
                         </body>
                     </html>
@@ -857,7 +871,9 @@ def get_registros_inscritos():
     finally:
         conn.close()
 
+# Inicializar base de datos al importar el módulo (para gunicorn)
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     port = int(os.getenv('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port, threaded=True)

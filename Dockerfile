@@ -3,7 +3,6 @@ FROM python:3.10-slim
 # Variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8000
 
 WORKDIR /app
 
@@ -31,7 +30,7 @@ COPY admin/ ./admin/
 RUN mkdir -p backend/comprobantes
 
 # Exponer puerto (Railway usa la variable PORT)
-EXPOSE ${PORT}
+EXPOSE 8000
 
-# Script de inicio que ejecuta backend y frontend
-CMD python backend/app.py
+# Ejecutar con gunicorn para producción
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 backend.app:app
