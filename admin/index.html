@@ -132,19 +132,34 @@
         let inscritosData = [];
 
         // Verificar autenticación al cargar la página
+        let authChecked = false;
+        
         window.addEventListener('DOMContentLoaded', async () => {
+            // Cargar vista inicial
+            cambiarVista('pendientes');
+        });
+
+        // Verificar autenticación antes de hacer peticiones
+        async function verificarAutenticacion() {
+            if (authChecked) return true;
+            
             try {
                 const response = await fetch(`${API_URL}/check-auth`, {
                     credentials: 'include'
                 });
-                if (!response.ok) {
+                if (response.ok) {
+                    authChecked = true;
+                    return true;
+                } else {
                     window.location.href = '/admin/login.html';
+                    return false;
                 }
             } catch (error) {
                 console.error('Error verificando autenticación:', error);
                 window.location.href = '/admin/login.html';
+                return false;
             }
-        });
+        }
 
         // Cambiar entre vistas
         function cambiarVista(vista) {
@@ -169,6 +184,9 @@
 
         // Cargar registros pendientes
         async function cargarRegistros() {
+            // Verificar autenticación antes de cargar
+            if (!await verificarAutenticacion()) return;
+            
             try {
                 const response = await fetch(`${API_URL}/registros-pendientes`, {
                     credentials: 'include'
@@ -296,6 +314,9 @@
 
         // Cargar corredores inscritos
         async function cargarInscritos() {
+            // Verificar autenticación antes de cargar
+            if (!await verificarAutenticacion()) return;
+            
             try {
                 const response = await fetch(`${API_URL}/registros-inscritos`, {
                     credentials: 'include'
