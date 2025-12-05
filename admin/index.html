@@ -130,23 +130,28 @@
         const API_URL = `${API_BASE}/api`;
         let codigoActual = null;
         let inscritosData = [];
-
-        // Verificar autenticación al cargar la página
         let authChecked = false;
-        let admin_token = localStorage.getItem('admin_token');
         
         window.addEventListener('DOMContentLoaded', async () => {
+            // Verificar que existe token antes de cargar la vista
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            
             // Cargar vista inicial
             cambiarVista('pendientes');
         });
 
         // Obtener headers con token
         function getHeaders() {
+            const token = localStorage.getItem('admin_token');
             const headers = {
                 'Content-Type': 'application/json'
             };
-            if (admin_token) {
-                headers['Authorization'] = `Bearer ${admin_token}`;
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
             }
             return headers;
         }
@@ -155,13 +160,14 @@
         async function verificarAutenticacion() {
             if (authChecked) return true;
             
-            if (!admin_token) {
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
                 window.location.href = '/admin/login.html';
                 return false;
             }
             
             try {
-                const response = await fetch(`${API_URL}/check-auth?token=${admin_token}`);
+                const response = await fetch(`${API_URL}/check-auth?token=${token}`);
                 if (response.ok) {
                     authChecked = true;
                     return true;
@@ -176,6 +182,21 @@
                 window.location.href = '/admin/login.html';
                 return false;
             }
+        }
+
+        // Función wrapper para fetch con manejo de 401
+        async function fetchConAuth(url, options = {}) {
+            const response = await fetch(url, options);
+            
+            // Si recibe 401, el token es inválido
+            if (response.status === 401) {
+                localStorage.removeItem('admin_token');
+                authChecked = false;
+                window.location.href = '/admin/login.html';
+                throw new Error('Token inválido o expirado');
+            }
+            
+            return response;
         }
 
         // Cambiar entre vistas
@@ -205,7 +226,7 @@
             if (!await verificarAutenticacion()) return;
             
             try {
-                const response = await fetch(`${API_URL}/registros-pendientes`, {
+                const response = await fetchConAuth(`${API_URL}/registros-pendientes`, {
                     headers: getHeaders()
                 });
                 const registros = await response.json();
@@ -262,7 +283,8 @@
             
             // Usar código para obtener el comprobante desde la base de datos
             // Pasar el token en query parameter para que funcione con <img src="">
-            const comprobanteUrl = `${API_BASE}/comprobantes/${codigo}?token=${admin_token}`;
+            const token = localStorage.getItem('admin_token');
+            const comprobanteUrl = `${API_BASE}/comprobantes/${codigo}?token=${token}`;
             const ext = archivo ? archivo.split('.').pop().toLowerCase() : 'jpg';
 
             if (['jpg', 'jpeg', 'png'].includes(ext)) {
@@ -292,7 +314,7 @@
             if (!codigoActual) return;
 
             try {
-                const response = await fetch(`${API_URL}/validar-pago`, {
+                const response = await fetchConAuth(`${API_URL}/validar-pago`, {
                     method: 'POST',
                     headers: getHeaders(),
                     body: JSON.stringify({
@@ -319,7 +341,7 @@
         // Cerrar sesión
         async function cerrarSesion() {
             try {
-                await fetch(`${API_URL}/logout`, {
+                await fetchConAuth(`${API_URL}/logout`, {
                     method: 'POST',
                     headers: getHeaders()
                 });
@@ -337,7 +359,7 @@
             if (!await verificarAutenticacion()) return;
             
             try {
-                const response = await fetch(`${API_URL}/registros-inscritos`, {
+                const response = await fetchConAuth(`${API_URL}/registros-inscritos`, {
                     headers: getHeaders()
                 });
                 const registros = await response.json();
@@ -430,7 +452,7 @@
         // Marcar entrega de dorsal
         async function marcarEntrega(codigo, entregado) {
             try {
-                const response = await fetch(`${API_URL}/entregar-dorsal`, {
+                const response = await fetchConAuth(`${API_URL}/entregar-dorsal`, {
                     method: 'POST',
                     headers: getHeaders(),
                     body: JSON.stringify({ codigo: codigo })
@@ -454,7 +476,7 @@
         // Marcar asistencia
         async function marcarAsistencia(codigo, asistio) {
             try {
-                const response = await fetch(`${API_URL}/marcar-asistencia`, {
+                const response = await fetchConAuth(`${API_URL}/marcar-asistencia`, {
                     method: 'POST',
                     headers: getHeaders(),
                     body: JSON.stringify({ codigo: codigo, asistio: asistio })
