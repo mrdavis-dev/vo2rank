@@ -264,6 +264,14 @@
         document.getElementById('registrationForm').addEventListener('submit', function(event) {
             event.preventDefault(); // Detiene el envío real del formulario
             
+            // Obtener botón de submit
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            
+            // Deshabilitar botón para evitar doble envío
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+            
             // Recopilar datos
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
@@ -287,11 +295,17 @@
                     updateCategory();
                 } else {
                     alert('Error: ' + result.error);
+                    // Re-habilitar botón en caso de error
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalButtonText;
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 alert('Error al enviar el registro');
+                // Re-habilitar botón en caso de error
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalButtonText;
             });
         });
     </script>

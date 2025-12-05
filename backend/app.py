@@ -56,7 +56,8 @@ def send_email(to_email, subject, body):
         
         msg.attach(MIMEText(body, 'html'))
         
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
+        server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
