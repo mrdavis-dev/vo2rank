@@ -261,7 +261,8 @@
             const contenido = document.getElementById('contenidoComprobante');
             
             // Usar código para obtener el comprobante desde la base de datos
-            const comprobanteUrl = `${API_BASE}/comprobantes/${codigo}`;
+            // Pasar el token en query parameter para que funcione con <img src="">
+            const comprobanteUrl = `${API_BASE}/comprobantes/${codigo}?token=${admin_token}`;
             const ext = archivo ? archivo.split('.').pop().toLowerCase() : 'jpg';
 
             if (['jpg', 'jpeg', 'png'].includes(ext)) {
