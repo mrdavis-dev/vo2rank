@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import uuid
 import resend
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 import hashlib
 from PIL import Image
@@ -28,30 +28,67 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protección CSRF
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 horas
 app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 
-# Tokens válidos en memoria (en producción usarías Redis o base de datos)
+# Tokens en memoria como fallback (local), pero en producción se usan en BD
 valid_tokens = {}
 
 def generar_token_admin(admin_id, admin_email):
-    """Genera un token único para el administrador"""
+    """Genera un token único para el administrador y lo guarda en BD"""
     token = secrets.token_urlsafe(32)
-    valid_tokens[token] = {
-        'admin_id': admin_id,
-        'admin_email': admin_email,
-        'created': datetime.now()
-    }
+    
+    # Guardar token en la base de datos
+    try:
+        conn = get_db_connection()
+        if conn:
+            with conn.cursor() as cur:
+                cur.execute('''
+                    INSERT INTO admin_tokens (token, admin_id, admin_email, created_at, expires_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                ''', (token, admin_id, admin_email, datetime.now(), datetime.now() + timedelta(hours=24)))
+                conn.commit()
+            conn.close()
+    except Exception as e:
+        print(f"Error guardando token en BD: {e}")
+        # Fallback a memoria si hay error
+        valid_tokens[token] = {
+            'admin_id': admin_id,
+            'admin_email': admin_email,
+            'created': datetime.now()
+        }
+    
     return token
 
 def verificar_token(token):
-    """Verifica si un token es válido y devuelve los datos del admin"""
+    """Verifica si un token es válido en BD o en memoria"""
+    # Primero intenta en BD
+    try:
+        conn = get_db_connection()
+        if conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute('''
+                    SELECT admin_id, admin_email, expires_at
+                    FROM admin_tokens
+                    WHERE token = %s AND expires_at > NOW()
+                ''', (token,))
+                resultado = cur.fetchone()
+                conn.close()
+                
+                if resultado:
+                    return {
+                        'admin_id': resultado['admin_id'],
+                        'admin_email': resultado['admin_email']
+                    }
+    except Exception as e:
+        print(f"Error verificando token en BD: {e}")
+    
+    # Fallback a memoria
     if token in valid_tokens:
-        # Verificar que no haya expirado (24 horas)
         datos = valid_tokens[token]
         tiempo_transcurrido = (datetime.now() - datos['created']).total_seconds()
         if tiempo_transcurrido < 86400:  # 24 horas
             return datos
         else:
-            # Token expirado, eliminarlo
             del valid_tokens[token]
+    
     return None
 
 CORS(app, supports_credentials=True)
@@ -246,6 +283,25 @@ def init_db():
                 ADD COLUMN IF NOT EXISTS fecha_entrega_dorsal TIMESTAMP;
             ''')
             
+            # Tabla para almacenar tokens de administradores
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS admin_tokens (
+                    id SERIAL PRIMARY KEY,
+                    token VARCHAR(255) UNIQUE NOT NULL,
+                    admin_id INT NOT NULL,
+                    admin_email VARCHAR(150) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    FOREIGN KEY (admin_id) REFERENCES administradores(id)
+                )
+            ''')
+            
+            # Índice para limpiar tokens expirados rápidamente
+            cur.execute('''
+                CREATE INDEX IF NOT EXISTS idx_admin_tokens_expires_at 
+                ON admin_tokens(expires_at)
+            ''')
+            
             # Modificar comprobante a BYTEA si es VARCHAR (nota: esto es complicado en PostgreSQL)
             # Por ahora, dejaremos que coexistan ambas versiones
             
@@ -325,6 +381,19 @@ def logout():
     if auth_header.startswith('Bearer '):
         token = auth_header[7:]
     
+    # Eliminar token de BD
+    if token:
+        try:
+            conn = get_db_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute('DELETE FROM admin_tokens WHERE token = %s', (token,))
+                    conn.commit()
+                conn.close()
+        except Exception as e:
+            print(f"Error borrando token de BD: {e}")
+    
+    # Fallback: eliminar de memoria también
     if token and token in valid_tokens:
         del valid_tokens[token]
     
