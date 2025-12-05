@@ -110,6 +110,22 @@ def send_email(to_email, subject, body):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_admin_id():
+    """Obtiene el admin_id del token o de la sesión"""
+    # Primero intenta obtener del request (cuando usa token)
+    if hasattr(request, 'admin_id'):
+        return request.admin_id
+    # Si no, intenta de la sesión (backwards compatibility)
+    return session.get('admin_id')
+
+def get_admin_email():
+    """Obtiene el email del admin del token o de la sesión"""
+    # Primero intenta obtener del request (cuando usa token)
+    if hasattr(request, 'admin_email'):
+        return request.admin_email
+    # Si no, intenta de la sesión (backwards compatibility)
+    return session.get('admin_email')
+
 def require_auth(f):
     """Decorador para requerir autenticación"""
     from functools import wraps
@@ -384,7 +400,7 @@ def cambiar_password():
     
     try:
         with conn.cursor() as cur:
-            admin_id = session.get('admin_id')
+            admin_id = get_admin_id()
             password_actual_hash = hashlib.sha256(password_actual.encode()).hexdigest()
             
             # Verificar contraseña actual
