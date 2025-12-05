@@ -1,38 +1,44 @@
 import os
-from flask import Flask, jsonify, request, session, send_from_directory
+from flask import Flask, jsonify, request, session, send_from_directory, Response
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import uuid
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import resend
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import secrets
 import hashlib
+from PIL import Image
+import io
 
 load_dotenv()
+
+# Configurar Resend API Key
+resend.api_key = os.getenv('API_KEY_RESEND')
 
 app = Flask(__name__, static_folder='..', static_url_path='')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 CORS(app, supports_credentials=True)
 
 # Configuración de carpetas
-UPLOAD_FOLDER = 'comprobantes'
+# NOTA: En Railway, los archivos se guardan en el sistema de archivos efímero del contenedor
+# Si el contenedor se reinicia, los archivos se perderán
+# Para producción, considera usar: Railway Volumes, AWS S3, Cloudinary, etc.
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comprobantes')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+    print(f"✓ Directorio de comprobantes creado: {UPLOAD_FOLDER}")
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max
 
 # Configuración de correo
-EMAIL_ADDRESS = os.getenv('EMAIL_ADDRESS', 'tu_email@gmail.com')
-EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD', 'tu_contraseña')
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@vo2max.com')
+EMAIL_FROM = 'VO2Max Running <noreply@paylert.app>'  # Dominio verificado en Resend
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'codedevel.14@gmail.com')
 
 # Configuración de la base de datos PostgreSQL
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:cBOYRtwEhqPHKOUJXmtFhJWVCNaHezGg@switchback.proxy.rlwy.net:41713/railway')
@@ -47,25 +53,24 @@ def get_db_connection():
         return None
 
 def send_email(to_email, subject, body):
-    """Envía un correo electrónico"""
+    """Envía un correo electrónico usando Resend"""
     try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_ADDRESS
-        msg['To'] = to_email
-        msg['Subject'] = subject
+        params = {
+            "from": EMAIL_FROM,
+            "to": [to_email],
+            "subject": subject,
+            "html": body,
+        }
         
-        msg.attach(MIMEText(body, 'html'))
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
-        server.starttls()
-        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        
-        print(f"✓ Correo enviado a {to_email}")
+        email = resend.Emails.send(params)
+        email_id = email.get('id', 'N/A') if isinstance(email, dict) else 'N/A'
+        print(f"✓ Correo enviado exitosamente a {to_email} (ID: {email_id})")
         return True
     except Exception as e:
-        print(f"✗ Error enviando correo a {to_email}: {e}")
+        print(f"✗ Error enviando correo a {to_email}: {str(e)}")
+        print(f"   Tipo de error: {type(e).__name__}")
+        # Con el dominio de prueba de Resend, solo se pueden enviar correos a direcciones verificadas
+        # Para enviar a cualquier dirección, necesitas verificar tu propio dominio en Resend
         return False
 
 def allowed_file(filename):
@@ -131,11 +136,45 @@ def init_db():
                     codigo_registro VARCHAR(50) NOT NULL UNIQUE,
                     estado VARCHAR(50) DEFAULT 'pendiente',
                     dorsal INT UNIQUE,
-                    comprobante VARCHAR(255),
+                    comprobante BYTEA,
+                    comprobante_filename VARCHAR(255),
+                    comprobante_mimetype VARCHAR(50),
+                    dorsal_entregado BOOLEAN DEFAULT FALSE,
+                    asistio BOOLEAN DEFAULT FALSE,
                     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    fecha_validacion TIMESTAMP
+                    fecha_validacion TIMESTAMP,
+                    fecha_entrega_dorsal TIMESTAMP
                 )
             ''')
+            
+            # Agregar columnas nuevas si no existen (para tablas ya creadas)
+            cur.execute('''
+                ALTER TABLE registros 
+                ADD COLUMN IF NOT EXISTS comprobante_filename VARCHAR(255);
+            ''')
+            
+            cur.execute('''
+                ALTER TABLE registros 
+                ADD COLUMN IF NOT EXISTS comprobante_mimetype VARCHAR(50);
+            ''')
+            
+            cur.execute('''
+                ALTER TABLE registros 
+                ADD COLUMN IF NOT EXISTS dorsal_entregado BOOLEAN DEFAULT FALSE;
+            ''')
+            
+            cur.execute('''
+                ALTER TABLE registros 
+                ADD COLUMN IF NOT EXISTS asistio BOOLEAN DEFAULT FALSE;
+            ''')
+            
+            cur.execute('''
+                ALTER TABLE registros 
+                ADD COLUMN IF NOT EXISTS fecha_entrega_dorsal TIMESTAMP;
+            ''')
+            
+            # Modificar comprobante a BYTEA si es VARCHAR (nota: esto es complicado en PostgreSQL)
+            # Por ahora, dejaremos que coexistan ambas versiones
             
             conn.commit()
             print("Base de datos inicializada correctamente")
@@ -312,12 +351,37 @@ def serve_static(filename):
         return send_from_directory('.', filename)
     return send_from_directory('.', filename)
 
-# Endpoint: Servir archivos de comprobantes
-@app.route('/comprobantes/<path:filename>')
+# Endpoint: Servir archivos de comprobantes desde la base de datos
+@app.route('/comprobantes/<codigo>')
 @require_auth
-def serve_comprobante(filename):
-    """Sirve los archivos de comprobantes (solo para admins autenticados)"""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+def serve_comprobante(codigo):
+    """Sirve el comprobante desde la base de datos (solo para admins autenticados)"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión'}), 500
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute('''
+                SELECT comprobante, comprobante_mimetype, comprobante_filename 
+                FROM registros 
+                WHERE codigo_registro = %s AND comprobante IS NOT NULL
+            ''', (codigo,))
+            result = cur.fetchone()
+            
+            if not result or not result['comprobante']:
+                return jsonify({'error': 'Comprobante no encontrado'}), 404
+            
+            return Response(
+                result['comprobante'],
+                mimetype=result['comprobante_mimetype'] or 'image/jpeg',
+                headers={'Content-Disposition': f'inline; filename="{result["comprobante_filename"]}"'}
+            )
+    except Exception as e:
+        print(f"Error sirviendo comprobante: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
 
 # Endpoint: Obtener información del club
 @app.route('/api/club-info', methods=['GET'])
@@ -492,7 +556,7 @@ def registrar_corredor():
 # Endpoint: Subir comprobante de pago
 @app.route('/api/subir-comprobante', methods=['POST'])
 def subir_comprobante():
-    """Sube el comprobante de pago"""
+    """Sube el comprobante de pago y lo guarda comprimido en la base de datos"""
     codigo = request.form.get('codigo')
     
     if 'comprobante' not in request.files:
@@ -511,16 +575,79 @@ def subir_comprobante():
         return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
     
     try:
-        filename = f"{codigo}_{secure_filename(file.filename)}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        original_filename = file.filename
+        file_extension = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'bin'
+        
+        # Crear nombre corto: codigo_timestamp.ext (máx 50 caracteres)
+        import time
+        short_filename = f"{codigo}_{int(time.time())}.{file_extension}"
+        
+        # Asegurar que no exceda 255 caracteres (aunque con este formato es imposible)
+        short_filename = short_filename[:255]
+        
+        # Leer el archivo UNA sola vez
+        file_data = file.read()
+        original_size = len(file_data)
+        print(f"📤 Archivo recibido: {original_filename} ({original_size} bytes)")
+        print(f"   Guardando como: {short_filename}")
+        
+        # Si es imagen, comprimirla
+        if file_extension in ['jpg', 'jpeg', 'png']:
+            try:
+                # Abrir imagen con PIL
+                image = Image.open(io.BytesIO(file_data))
+                print(f"📸 Imagen abierta: {image.format} {image.size}")
+                
+                # Convertir a RGB si es necesario (para PNG con transparencia)
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'P':
+                        image = image.convert('RGBA')
+                    background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                    image = background
+                
+                # Redimensionar si es muy grande (max 1200px en el lado más largo)
+                max_size = 1200
+                if max(image.size) > max_size:
+                    ratio = max_size / max(image.size)
+                    new_size = tuple(int(dim * ratio) for dim in image.size)
+                    image = image.resize(new_size, Image.Resampling.LANCZOS)
+                
+                # Comprimir y guardar en buffer
+                buffer = io.BytesIO()
+                image.save(buffer, format='JPEG', quality=70, optimize=True)
+                file_data = buffer.getvalue()
+                file_extension = 'jpg'
+                
+                compressed_size = len(file_data)
+                print(f"✓ Imagen comprimida: {original_size}b → {compressed_size}b ({100 - int(compressed_size*100/original_size)}% reducción)")
+            except Exception as e:
+                print(f"⚠ Error comprimiendo imagen, guardando original: {e}")
+                print(f"✓ Guardando imagen original: {filename} ({original_size} bytes)")
+        
+        # Determinar mimetype
+        mimetype_map = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'pdf': 'application/pdf'
+        }
+        mimetype = mimetype_map.get(file_extension, 'application/octet-stream')
+        
+        print(f"✓ Guardando comprobante en BD: {short_filename} ({len(file_data)} bytes, mimetype: {mimetype})")
         
         with conn.cursor() as cur:
+            # Guardar archivo como BYTEA en la base de datos
             cur.execute('''
-                UPDATE registros SET comprobante = %s, estado = %s
+                UPDATE registros 
+                SET comprobante = %s, 
+                    comprobante_filename = %s,
+                    comprobante_mimetype = %s,
+                    estado = %s
                 WHERE codigo_registro = %s
-            ''', (filepath, 'pendiente_validacion', codigo))
+            ''', (psycopg2.Binary(file_data), short_filename, mimetype, 'pendiente_validacion', codigo))
             conn.commit()
+            print(f"✓ Comprobante guardado en BD para {codigo}")
             
             # Obtener datos del corredor para el correo del admin
             cur.execute('SELECT correo, nombre, apellido FROM registros WHERE codigo_registro = %s', (codigo,))
@@ -564,7 +691,14 @@ def get_registro(codigo):
     
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute('SELECT * FROM registros WHERE codigo_registro = %s', (codigo,))
+            # Excluir comprobante (BYTEA) pero incluir comprobante_filename
+            cur.execute('''
+                SELECT id, nombre, apellido, edad, genero, correo, team, categoria, 
+                       codigo_registro, estado, dorsal, fecha_creacion, fecha_validacion,
+                       carrera_id, dorsal_entregado, asistio, fecha_entrega_dorsal,
+                       comprobante_filename, comprobante_mimetype
+                FROM registros WHERE codigo_registro = %s
+            ''', (codigo,))
             registro = cur.fetchone()
             
             if registro:
@@ -746,7 +880,7 @@ def validar_pago():
 @app.route('/api/registros-pendientes', methods=['GET'])
 @require_auth
 def get_registros_pendientes():
-    """Obtiene los registros pendientes de validación"""
+    """Obtiene los registros pendientes de validación (sin traer imagenes)"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
@@ -754,7 +888,11 @@ def get_registros_pendientes():
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute('''
-                SELECT * FROM registros 
+                SELECT id, nombre, apellido, edad, genero, correo, team, categoria, 
+                       codigo_registro, estado, comprobante_filename, comprobante_mimetype,
+                       CASE WHEN comprobante IS NOT NULL THEN true ELSE false END as tiene_comprobante,
+                       fecha_creacion
+                FROM registros 
                 WHERE estado = 'pendiente_validacion'
                 ORDER BY 
                     CASE WHEN comprobante IS NOT NULL THEN 0 ELSE 1 END,

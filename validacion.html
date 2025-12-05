@@ -113,14 +113,26 @@
                 
                 // Mostrar estado
                 const estadoSpan = document.getElementById('estado-display');
+                const form = document.getElementById('comprobante-form');
+                const success = document.getElementById('success-message');
+                
                 if (data.estado === 'pagado') {
                     estadoSpan.textContent = 'Confirmado';
                     estadoSpan.className = 'font-semibold text-green-600';
-                    document.getElementById('comprobante-form').style.display = 'none';
-                    document.getElementById('success-message').classList.remove('hidden');
+                    form.style.display = 'none';
+                    success.classList.remove('hidden');
                 } else if (data.estado === 'rechazado') {
                     estadoSpan.textContent = 'Rechazado - Intenta nuevamente';
                     estadoSpan.className = 'font-semibold text-red-600';
+                    // Permite subir nuevamente si fue rechazado
+                    form.style.display = 'block';
+                } else if (data.estado === 'pendiente_validacion' && data.comprobante_filename) {
+                    // Ya tiene comprobante, mostrar que fue enviado
+                    estadoSpan.textContent = 'Comprobante Enviado - Esperando validación';
+                    estadoSpan.className = 'font-semibold text-blue-600';
+                    form.style.display = 'none';
+                    success.innerHTML = '<p class="text-blue-600"><i class="fas fa-check-circle mr-2"></i>Tu comprobante ha sido recibido. El administrador lo validará pronto.</p>';
+                    success.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -178,6 +190,13 @@
                 return;
             }
 
+            // Obtener botón de submit y deshabilitarlo
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
             const formData = new FormData();
             formData.append('codigo', codigo);
             formData.append('comprobante', selectedFile);
@@ -193,14 +212,23 @@
                 if (data.success) {
                     document.getElementById('comprobante-form').style.display = 'none';
                     document.getElementById('success-message').classList.remove('hidden');
+                    // No re-habilitar botón porque el formulario ya está oculto
                 } else {
                     document.getElementById('error-message').textContent = data.error;
                     document.getElementById('error-message').classList.remove('hidden');
+                    // Re-habilitar botón en caso de error
+                    submitButton.disabled = false;
+                    submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                    submitButton.innerHTML = originalButtonText;
                 }
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('error-message').textContent = 'Error al enviar el comprobante';
                 document.getElementById('error-message').classList.remove('hidden');
+                // Re-habilitar botón en caso de error
+                submitButton.disabled = false;
+                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                submitButton.innerHTML = originalButtonText;
             }
         });
 

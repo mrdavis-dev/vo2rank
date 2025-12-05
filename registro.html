@@ -270,6 +270,7 @@
             
             // Deshabilitar botón para evitar doble envío
             submitButton.disabled = true;
+            submitButton.classList.add('opacity-50', 'cursor-not-allowed');
             submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
             
             // Recopilar datos
@@ -293,10 +294,15 @@
                     // Limpiar formulario
                     document.getElementById('registrationForm').reset();
                     updateCategory();
+                    // Re-habilitar botón para permitir otro registro
+                    submitButton.disabled = false;
+                    submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                    submitButton.innerHTML = originalButtonText;
                 } else {
                     alert('Error: ' + result.error);
                     // Re-habilitar botón en caso de error
                     submitButton.disabled = false;
+                    submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
                     submitButton.innerHTML = originalButtonText;
                 }
             })
@@ -305,6 +311,7 @@
                 alert('Error al enviar el registro');
                 // Re-habilitar botón en caso de error
                 submitButton.disabled = false;
+                submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
                 submitButton.innerHTML = originalButtonText;
             });
         });

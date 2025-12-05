@@ -185,7 +185,7 @@
 
                 registros.forEach(registro => {
                     const row = document.createElement('tr');
-                    const tieneComprobante = registro.comprobante && registro.comprobante !== 'null';
+                    const tieneComprobante = registro.tiene_comprobante === true || registro.comprobante_filename;
                     
                     row.innerHTML = `
                         <td class="px-4 py-2 font-mono text-blue-600 text-sm">${registro.codigo_registro}</td>
@@ -197,7 +197,7 @@
                         <td class="px-4 py-2">${registro.categoria}</td>
                         <td class="px-4 py-2">
                             ${tieneComprobante ? 
-                                `<button onclick="verComprobante('${registro.codigo_registro}', '${registro.comprobante}')" 
+                                `<button onclick="verComprobante('${registro.codigo_registro}', '${registro.comprobante_filename || ''}')" 
                                         class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
                                     <i class="fas fa-eye mr-1"></i> Ver
                                 </button>` :
@@ -206,7 +206,7 @@
                         </td>
                         <td class="px-4 py-2">
                             ${tieneComprobante ? 
-                                `<button onclick="abrirComprobante('${registro.codigo_registro}', '${registro.comprobante}')" 
+                                `<button onclick="abrirComprobante('${registro.codigo_registro}', '${registro.comprobante_filename || ''}')" 
                                         class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
                                     Validar
                                 </button>` :
@@ -225,10 +225,9 @@
         function verComprobante(codigo, archivo) {
             const contenido = document.getElementById('contenidoComprobante');
             
-            // Construir URL correcta para el comprobante
-            const filename = archivo.split('/').pop(); // Obtener solo el nombre del archivo
-            const comprobanteUrl = `${API_BASE}/comprobantes/${filename}`;
-            const ext = archivo.split('.').pop().toLowerCase();
+            // Usar código para obtener el comprobante desde la base de datos
+            const comprobanteUrl = `${API_BASE}/comprobantes/${codigo}`;
+            const ext = archivo ? archivo.split('.').pop().toLowerCase() : 'jpg';
 
             if (['jpg', 'jpeg', 'png'].includes(ext)) {
                 contenido.innerHTML = `<img src="${comprobanteUrl}" class="w-full object-contain" style="max-height: 400px;">`;
@@ -272,7 +271,7 @@
                 if (data.success) {
                     alert(data.message);
                     cerrarModal();
-                    cargarRegistros();
+                    await cargarRegistros();
                 } else {
                     alert('Error: ' + data.error);
                 }
