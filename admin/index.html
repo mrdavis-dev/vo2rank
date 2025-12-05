@@ -133,24 +133,41 @@
 
         // Verificar autenticación al cargar la página
         let authChecked = false;
+        let admin_token = localStorage.getItem('admin_token');
         
         window.addEventListener('DOMContentLoaded', async () => {
             // Cargar vista inicial
             cambiarVista('pendientes');
         });
 
+        // Obtener headers con token
+        function getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (admin_token) {
+                headers['Authorization'] = `Bearer ${admin_token}`;
+            }
+            return headers;
+        }
+
         // Verificar autenticación antes de hacer peticiones
         async function verificarAutenticacion() {
             if (authChecked) return true;
             
+            if (!admin_token) {
+                window.location.href = '/admin/login.html';
+                return false;
+            }
+            
             try {
-                const response = await fetch(`${API_URL}/check-auth`, {
-                    credentials: 'include'
-                });
+                const response = await fetch(`${API_URL}/check-auth?token=${admin_token}`);
                 if (response.ok) {
                     authChecked = true;
                     return true;
                 } else {
+                    // Token inválido, limpiar
+                    localStorage.removeItem('admin_token');
                     window.location.href = '/admin/login.html';
                     return false;
                 }
@@ -189,7 +206,7 @@
             
             try {
                 const response = await fetch(`${API_URL}/registros-pendientes`, {
-                    credentials: 'include'
+                    headers: getHeaders()
                 });
                 const registros = await response.json();
 
@@ -276,8 +293,7 @@
             try {
                 const response = await fetch(`${API_URL}/validar-pago`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
+                    headers: getHeaders(),
                     body: JSON.stringify({
                         codigo: codigoActual,
                         valido: valido
@@ -304,11 +320,13 @@
             try {
                 await fetch(`${API_URL}/logout`, {
                     method: 'POST',
-                    credentials: 'include'
+                    headers: getHeaders()
                 });
             } catch (error) {
                 console.error('Error al cerrar sesión:', error);
             }
+            // Limpiar token
+            localStorage.removeItem('admin_token');
             window.location.href = '/admin/login.html';
         }
 
@@ -319,7 +337,7 @@
             
             try {
                 const response = await fetch(`${API_URL}/registros-inscritos`, {
-                    credentials: 'include'
+                    headers: getHeaders()
                 });
                 const registros = await response.json();
                 inscritosData = registros;
@@ -413,8 +431,7 @@
             try {
                 const response = await fetch(`${API_URL}/entregar-dorsal`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
+                    headers: getHeaders(),
                     body: JSON.stringify({ codigo: codigo })
                 });
 
@@ -438,8 +455,7 @@
             try {
                 const response = await fetch(`${API_URL}/marcar-asistencia`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
+                    headers: getHeaders(),
                     body: JSON.stringify({ codigo: codigo, asistio: asistio })
                 });
 

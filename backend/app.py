@@ -20,6 +20,40 @@ resend.api_key = os.getenv('API_KEY_RESEND')
 
 app = Flask(__name__, static_folder='..', static_url_path='')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+
+# Configuración de sesión para producción
+app.config['SESSION_COOKIE_SECURE'] = True  # Solo HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # No accesible desde JavaScript
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protección CSRF
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 horas
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+
+# Tokens válidos en memoria (en producción usarías Redis o base de datos)
+valid_tokens = {}
+
+def generar_token_admin(admin_id, admin_email):
+    """Genera un token único para el administrador"""
+    token = secrets.token_urlsafe(32)
+    valid_tokens[token] = {
+        'admin_id': admin_id,
+        'admin_email': admin_email,
+        'created': datetime.now()
+    }
+    return token
+
+def verificar_token(token):
+    """Verifica si un token es válido y devuelve los datos del admin"""
+    if token in valid_tokens:
+        # Verificar que no haya expirado (24 horas)
+        datos = valid_tokens[token]
+        tiempo_transcurrido = (datetime.now() - datos['created']).total_seconds()
+        if tiempo_transcurrido < 86400:  # 24 horas
+            return datos
+        else:
+            # Token expirado, eliminarlo
+            del valid_tokens[token]
+    return None
+
 CORS(app, supports_credentials=True)
 
 # Configuración de carpetas
@@ -81,9 +115,32 @@ def require_auth(f):
     from functools import wraps
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'admin_logged_in' not in session:
-            return jsonify({'error': 'No autorizado', 'redirect': '/admin/login.html'}), 401
-        return f(*args, **kwargs)
+        # Verificar token en header Authorization o en parámetro query
+        token = None
+        
+        # Buscar en header Authorization
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]  # Quitar "Bearer "
+        
+        # Si no hay en header, buscar en parámetro query
+        if not token:
+            token = request.args.get('token')
+        
+        # Si no hay token, verificar sesión antigua (para backwards compatibility)
+        if not token and 'admin_logged_in' in session:
+            return f(*args, **kwargs)
+        
+        # Verificar token
+        if token:
+            admin_data = verificar_token(token)
+            if admin_data:
+                # Guardar en request context para que pueda ser usado en la función
+                request.admin_id = admin_data['admin_id']
+                request.admin_email = admin_data['admin_email']
+                return f(*args, **kwargs)
+        
+        return jsonify({'error': 'No autorizado', 'redirect': '/admin/login.html'}), 401
     return decorated_function
 
 # Inicializar las tablas si no existen
@@ -220,15 +277,14 @@ def login():
             admin = cur.fetchone()
             
             if admin:
-                session['admin_logged_in'] = True
-                session['admin_email'] = admin['email']
-                session['admin_id'] = admin['id']
-                session['admin_nombre'] = admin['nombre']
+                # Generar token en lugar de usar sesión
+                token = generar_token_admin(admin['id'], admin['email'])
                 
                 return jsonify({
                     'success': True,
                     'message': 'Login exitoso',
-                    'nombre': admin['nombre']
+                    'nombre': admin['nombre'],
+                    'token': token
                 })
             else:
                 return jsonify({
@@ -247,8 +303,19 @@ def login():
 @app.route('/api/logout', methods=['POST'])
 def logout():
     """Endpoint para cerrar sesión"""
+    # Buscar token para invalidarlo
+    token = None
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+    
+    if token and token in valid_tokens:
+        del valid_tokens[token]
+    
+    # Limpiar sesión antigua también (backwards compatibility)
     session.pop('admin_logged_in', None)
     session.pop('admin_email', None)
+    
     return jsonify({
         'success': True,
         'message': 'Sesión cerrada'
@@ -257,16 +324,36 @@ def logout():
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
     """Verifica si el usuario está autenticado"""
-    if 'admin_logged_in' in session:
+    # Buscar token en header o query
+    token = None
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+    
+    if not token:
+        token = request.args.get('token')
+    
+    # Si no hay token, verificar sesión antigua
+    if not token and 'admin_logged_in' in session:
         return jsonify({
             'authenticated': True,
             'email': session.get('admin_email'),
             'nombre': session.get('admin_nombre')
         })
-    else:
-        return jsonify({
-            'authenticated': False
-        }), 401
+    
+    # Verificar token
+    if token:
+        admin_data = verificar_token(token)
+        if admin_data:
+            return jsonify({
+                'authenticated': True,
+                'email': admin_data['admin_email'],
+                'token': token
+            })
+    
+    return jsonify({
+        'authenticated': False
+    }), 401
 
 @app.route('/api/cambiar-password', methods=['POST'])
 @require_auth

@@ -36,15 +36,19 @@
 
         // Verificar si ya está logueado
         window.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const response = await fetch(`${API_URL}/check-auth`, {
-                    credentials: 'include'
-                });
-                if (response.ok) {
-                    window.location.href = '/admin/index.html';
+            const token = localStorage.getItem('admin_token');
+            if (token) {
+                try {
+                    const response = await fetch(`${API_URL}/check-auth?token=${token}`);
+                    if (response.ok) {
+                        window.location.href = '/admin/index.html';
+                    } else {
+                        // Token inválido, limpiar
+                        localStorage.removeItem('admin_token');
+                    }
+                } catch (error) {
+                    console.log('No hay sesión activa');
                 }
-            } catch (error) {
-                console.log('No hay sesión activa');
             }
         });
 
@@ -64,8 +68,10 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    // Esperar a que la sesión se establezca antes de redirigir
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Guardar token en localStorage
+                    localStorage.setItem('admin_token', result.token);
+                    // Esperar a que se guarde antes de redirigir
+                    await new Promise(resolve => setTimeout(resolve, 100));
                     window.location.href = '/admin/index.html';
                 } else {
                     errorMsg.textContent = result.message || 'Credenciales incorrectas';
