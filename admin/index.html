@@ -37,6 +37,7 @@
                     <tr>
                         <th class="px-4 py-2 text-left text-gray-600">Código</th>
                         <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
+                        <th class="px-4 py-2 text-left text-gray-600">Edad</th>
                         <th class="px-4 py-2 text-left text-gray-600">Correo</th>
                         <th class="px-4 py-2 text-left text-gray-600">Categoría</th>
                         <th class="px-4 py-2 text-left text-gray-600">Comprobante</th>
@@ -88,6 +89,7 @@
                         <tr>
                             <th class="px-4 py-2 text-left text-gray-600">Dorsal</th>
                             <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Edad</th>
                             <th class="px-4 py-2 text-left text-gray-600">Categoría</th>
                             <th class="px-4 py-2 text-left text-gray-600">Correo</th>
                             <th class="px-4 py-2 text-center text-gray-600">Dorsal Entregado</th>
@@ -249,6 +251,7 @@
                             ${registro.nombre} ${registro.apellido}
                             ${!tieneComprobante ? '<span class="ml-2 text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded">Sin comprobante</span>' : ''}
                         </td>
+                        <td class="px-4 py-2">${registro.edad}</td>
                         <td class="px-4 py-2 text-sm">${registro.correo}</td>
                         <td class="px-4 py-2">${registro.categoria}</td>
                         <td class="px-4 py-2">
@@ -401,6 +404,7 @@
                         <div class="font-semibold">${registro.nombre} ${registro.apellido}</div>
                         <div class="text-sm text-gray-500">${registro.team || 'Sin team'}</div>
                     </td>
+                    <td class="px-4 py-2 text-sm">${registro.edad}</td>
                     <td class="px-4 py-2 text-sm">${registro.categoria}</td>
                     <td class="px-4 py-2 text-sm">${registro.correo}</td>
                     <td class="px-4 py-2 text-center">
