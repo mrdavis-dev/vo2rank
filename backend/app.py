@@ -741,16 +741,37 @@ def registrar_corredor_rapido():
     
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Obtener el último dorsal asignado
+            # Primero, buscar dorsales faltantes (huecos)
             cur.execute('SELECT MAX(dorsal) FROM registros WHERE dorsal IS NOT NULL')
             result = cur.fetchone()
             max_dorsal = result['max'] if result and result['max'] is not None else None
             
-            # Generar dorsal secuencial comenzando desde 001
-            if max_dorsal is None:
-                dorsal = 1
-            else:
-                dorsal = max_dorsal + 1
+            dorsal = None
+            
+            # Si hay dorsales asignados, buscar huecos en el rango
+            if max_dorsal is not None and max_dorsal > 0:
+                # Obtener todos los dorsales asignados en el rango
+                cur.execute('''
+                    SELECT DISTINCT dorsal 
+                    FROM registros 
+                    WHERE dorsal IS NOT NULL AND dorsal > 0
+                    ORDER BY dorsal ASC
+                ''')
+                dorsales_asignados = set(row['dorsal'] for row in cur.fetchall())
+                
+                # Buscar el primer hueco en el rango 1 a max_dorsal
+                for num in range(1, max_dorsal + 1):
+                    if num not in dorsales_asignados:
+                        dorsal = num
+                        print(f"Dorsal faltante encontrado: {dorsal}")
+                        break
+            
+            # Si no hay huecos, asignar el siguiente dorsal secuencial
+            if dorsal is None:
+                if max_dorsal is None:
+                    dorsal = 1
+                else:
+                    dorsal = max_dorsal + 1
             
             print(f"Asignando dorsal {dorsal} al código {codigo_registro}")
             
@@ -1069,16 +1090,37 @@ def validar_pago():
                     return jsonify({'error': 'Registro no encontrado'}), 404
                 
                 if valido:
-                    # Obtener el último dorsal asignado
+                    # Primero, buscar dorsales faltantes (huecos)
                     cur.execute('SELECT MAX(dorsal) FROM registros WHERE dorsal IS NOT NULL')
                     result = cur.fetchone()
                     max_dorsal = result['max'] if result and result['max'] is not None else None
                     
-                    # Generar dorsal secuencial comenzando desde 001
-                    if max_dorsal is None:
-                        dorsal = 1
-                    else:
-                        dorsal = max_dorsal + 1
+                    dorsal = None
+                    
+                    # Si hay dorsales asignados, buscar huecos en el rango
+                    if max_dorsal is not None and max_dorsal > 0:
+                        # Obtener todos los dorsales asignados en el rango
+                        cur.execute('''
+                            SELECT DISTINCT dorsal 
+                            FROM registros 
+                            WHERE dorsal IS NOT NULL AND dorsal > 0
+                            ORDER BY dorsal ASC
+                        ''')
+                        dorsales_asignados = set(row['dorsal'] for row in cur.fetchall())
+                        
+                        # Buscar el primer hueco en el rango 1 a max_dorsal
+                        for num in range(1, max_dorsal + 1):
+                            if num not in dorsales_asignados:
+                                dorsal = num
+                                print(f"Dorsal faltante encontrado: {dorsal}")
+                                break
+                    
+                    # Si no hay huecos, asignar el siguiente dorsal secuencial
+                    if dorsal is None:
+                        if max_dorsal is None:
+                            dorsal = 1
+                        else:
+                            dorsal = max_dorsal + 1
                     
                     print(f"Asignando dorsal {dorsal} al código {codigo}")
                     
