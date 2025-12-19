@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Rápido de Corredores - VO2Max</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-lg">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">Panel de Administración - Registro Rápido</h1>
+            <div class="flex gap-4">
+                <a href="/admin/index.html" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Volver al Panel
+                </a>
+                <button onclick="cerrarSesion()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto py-8 px-4">
+        <div class="max-w-2xl mx-auto">
+            <!-- Encabezado -->
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+                <h2 class="text-3xl font-bold text-gray-800 mb-2 text-center">
+                    <i class="fas fa-bolt text-yellow-500 mr-2"></i> Registro Rápido de Corredores
+                </h2>
+                <p class="text-gray-600 text-center">
+                    Para inscripciones el día de la carrera - Se asigna dorsal automáticamente
+                </p>
+            </div>
+
+            <!-- Formulario -->
+            <div class="bg-white rounded-lg shadow-lg p-8">
+                <form id="registrationForm" class="space-y-6">
+                    <!-- Nombre y Apellido -->
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="flex-1">
+                            <label for="nombre" class="block text-sm font-semibold text-gray-700 mb-1">Nombre *</label>
+                            <input type="text" id="nombre" name="nombre" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition">
+                        </div>
+                        <div class="flex-1">
+                            <label for="apellido" class="block text-sm font-semibold text-gray-700 mb-1">Apellido *</label>
+                            <input type="text" id="apellido" name="apellido" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition">
+                        </div>
+                    </div>
+
+                    <!-- Edad y Género -->
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="flex-1">
+                            <label for="edad" class="block text-sm font-semibold text-gray-700 mb-1">Edad *</label>
+                            <input type="number" id="edad" name="edad" required min="0" max="99"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                                   oninput="updateCategory()">
+                        </div>
+                        <div class="flex-1">
+                            <label for="genero" class="block text-sm font-semibold text-gray-700 mb-1">Género *</label>
+                            <select id="genero" name="genero" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none transition">
+                                <option value="">Seleccione</option>
+                                <option value="Femenino">Femenino</option>
+                                <option value="Masculino">Masculino</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Correo y Team -->
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="flex-1">
+                            <label for="correo" class="block text-sm font-semibold text-gray-700 mb-1">Correo Electrónico *</label>
+                            <input type="email" id="correo" name="correo" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition">
+                        </div>
+                        <div class="flex-1">
+                            <label for="team" class="block text-sm font-semibold text-gray-700 mb-1">Team / Club (Opcional)</label>
+                            <input type="text" id="team" name="team"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition">
+                        </div>
+                    </div>
+
+                    <!-- Categoría de Carrera -->
+                    <div>
+                        <label for="categoria" class="block text-sm font-semibold text-gray-700 mb-1">Categoría de Carrera *</label>
+                        <select id="categoria" name="categoria" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none transition">
+                            <option value="">Ingresa tu edad para ver las categorías</option>
+                        </select>
+                        <p id="category-info" class="mt-2 text-xs text-green-600 font-medium"></p>
+                    </div>
+
+                    <!-- Botón de Inscripción -->
+                    <div class="flex gap-4 pt-4">
+                        <button type="submit"
+                                class="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-bold text-lg shadow-lg hover:bg-green-700 transition transform hover:scale-[1.01] flex items-center justify-center">
+                            <i class="fas fa-check-circle mr-2"></i> Registrar Corredor
+                        </button>
+                        <button type="button" onclick="limpiarFormulario()"
+                                class="flex-1 bg-gray-500 text-white py-3 px-4 rounded-lg font-bold text-lg shadow-lg hover:bg-gray-600 transition">
+                            <i class="fas fa-redo mr-2"></i> Limpiar
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Información importante -->
+                <div class="mt-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                    <h3 class="font-semibold text-yellow-800 mb-2">
+                        <i class="fas fa-info-circle mr-2"></i> Información Importante
+                    </h3>
+                    <ul class="text-sm text-yellow-700 space-y-1">
+                        <li>✓ Se asignará un dorsal automáticamente</li>
+                        <li>✓ No es necesario validar pago</li>
+                        <li>✓ El corredor quedará listo para correr</li>
+                        <li>✓ Se enviará confirmación por correo</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Tabla de últimos registrados -->
+            <div class="mt-8 bg-white rounded-lg shadow-lg p-8">
+                <h3 class="text-2xl font-bold text-gray-800 mb-4">
+                    <i class="fas fa-list mr-2"></i> Últimos Corredores Registrados
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-semibold text-gray-700">Dorsal</th>
+                                <th class="px-4 py-3 text-left font-semibold text-gray-700">Nombre</th>
+                                <th class="px-4 py-3 text-left font-semibold text-gray-700">Edad</th>
+                                <th class="px-4 py-3 text-left font-semibold text-gray-700">Categoría</th>
+                                <th class="px-4 py-3 text-left font-semibold text-gray-700">Hora</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ultimos-registrados" class="divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="5" class="px-4 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i> Cargando...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full text-center">
+            <div class="text-6xl text-green-600 mb-4">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">¡Registrado Exitosamente!</h2>
+            <p class="text-gray-600 mb-6" id="successMessage">
+                El corredor ha sido registrado y se le asignó su dorsal.
+            </p>
+            <button onclick="cerrarModal()" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-green-700">
+                Continuar
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? `${window.location.protocol}//${window.location.hostname}:5000`
+            : window.location.origin;
+        const API_URL = `${API_BASE}/api`;
+
+        // Verificar autenticación al cargar
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            cargarUltimosRegistrados();
+        });
+
+        // Obtener headers con token
+        function getHeaders() {
+            const token = localStorage.getItem('admin_token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        // Fetch con autenticación
+        async function fetchConAuth(url, options = {}) {
+            const response = await fetch(url, options);
+            if (response.status === 401) {
+                localStorage.removeItem('admin_token');
+                window.location.href = '/admin/login.html';
+                throw new Error('Token inválido');
+            }
+            return response;
+        }
+
+        // Actualizar categoría basado en edad
+        function updateCategory() {
+            const ageInput = document.getElementById('edad');
+            const categorySelect = document.getElementById('categoria');
+            const infoText = document.getElementById('category-info');
+            const age = parseInt(ageInput.value);
+
+            categorySelect.innerHTML = '';
+            infoText.textContent = '';
+
+            if (isNaN(age) || age < 0) {
+                categorySelect.innerHTML = '<option value="">Ingresa tu edad para ver las categorías</option>';
+                infoText.textContent = 'Por favor, ingresa una edad válida.';
+                return;
+            }
+
+            let optionsHtml = '';
+            let currentCategory = '';
+
+            if (age >= 14) {
+                currentCategory = '5K';
+                optionsHtml = `<option value="5K" selected>${currentCategory} - Carrera Principal</option>`;
+                infoText.textContent = '¡Genial! Categoría: 5K - Carrera Principal.';
+            } else if (age >= 10) {
+                currentCategory = 'Kid_10-13';
+                optionsHtml = `<option value="Kid_10-13" selected>Kid Race (10-13 años) - 1K</option>`;
+                infoText.textContent = '¡A correr 1K! Categoría: 10-13 años.';
+            } else if (age >= 7) {
+                currentCategory = 'Kid_7-9';
+                optionsHtml = `<option value="Kid_7-9" selected>Kid Race (7-9 años) - 500m</option>`;
+                infoText.textContent = '¡A correr 500 metros! Categoría: 7-9 años.';
+            } else {
+                currentCategory = 'Kid_0-6';
+                optionsHtml = `<option value="Kid_0-6" selected>Kids Race (0-6 años) - 200m</option>`;
+                infoText.textContent = '¡A correr 200 metros! Categoría: 0-6 años.';
+            }
+
+            categorySelect.innerHTML = optionsHtml;
+        }
+
+        // Manejar envío del formulario
+        document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                nombre: document.getElementById('nombre').value,
+                apellido: document.getElementById('apellido').value,
+                edad: parseInt(document.getElementById('edad').value),
+                genero: document.getElementById('genero').value,
+                correo: document.getElementById('correo').value,
+                team: document.getElementById('team').value || null,
+                categoria: document.getElementById('categoria').value,
+                carrera_id: 1 // Asumiendo que hay una carrera con ID 1
+            };
+
+            try {
+                const response = await fetchConAuth(`${API_URL}/registrar-corredor-rapido`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    mostrarExito(data);
+                    limpiarFormulario();
+                    cargarUltimosRegistrados();
+                } else {
+                    alert('Error: ' + (data.error || 'No se pudo registrar el corredor'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al registrar el corredor: ' + error.message);
+            }
+        });
+
+        // Mostrar mensaje de éxito
+        function mostrarExito(data) {
+            const message = `<strong>${data.nombre} ${data.apellido}</strong><br>
+                            Dorsal: <strong>${data.dorsal_formatted}</strong><br>
+                            Categoría: <strong>${data.categoria}</strong>`;
+            document.getElementById('successMessage').innerHTML = message;
+            document.getElementById('successModal').classList.remove('hidden');
+        }
+
+        // Cerrar modal
+        function cerrarModal() {
+            document.getElementById('successModal').classList.add('hidden');
+        }
+
+        // Limpiar formulario
+        function limpiarFormulario() {
+            document.getElementById('registrationForm').reset();
+            document.getElementById('categoria').innerHTML = '<option value="">Ingresa tu edad para ver las categorías</option>';
+            document.getElementById('category-info').textContent = '';
+        }
+
+        // Cargar últimos registrados
+        async function cargarUltimosRegistrados() {
+            try {
+                const response = await fetchConAuth(`${API_URL}/registros-inscritos`, {
+                    headers: getHeaders()
+                });
+
+                const registros = await response.json();
+                const tabla = document.getElementById('ultimos-registrados');
+                
+                if (registros.error || registros.length === 0) {
+                    tabla.innerHTML = `<tr>
+                        <td colspan="5" class="px-4 py-4 text-center text-gray-500">
+                            No hay corredores registrados aún
+                        </td>
+                    </tr>`;
+                    return;
+                }
+
+                // Mostrar los últimos 10
+                const ultimos = registros.slice(-10).reverse();
+                tabla.innerHTML = ultimos.map(r => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-bold text-green-600 text-lg">${r.dorsal_formatted || r.dorsal}</td>
+                        <td class="px-4 py-3">${r.nombre} ${r.apellido}</td>
+                        <td class="px-4 py-3">${r.edad}</td>
+                        <td class="px-4 py-3">${r.categoria}</td>
+                        <td class="px-4 py-3 text-gray-500 text-xs">
+                            ${new Date(r.fecha_creacion).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error cargando últimos registrados:', error);
+            }
+        }
+
+        // Recargar tabla cada 5 segundos
+        setInterval(cargarUltimosRegistrados, 5000);
+
+        // Cerrar sesión
+        async function cerrarSesion() {
+            try {
+                await fetchConAuth(`${API_URL}/logout`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+            localStorage.removeItem('admin_token');
+            window.location.href = '/admin/login.html';
+        }
+    </script>
+</body>
+</html>

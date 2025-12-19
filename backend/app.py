@@ -725,6 +725,166 @@ def registrar_corredor():
     finally:
         conn.close()
 
+# Endpoint: Registrar corredor rápido (sin validación de pago - para el día de la carrera)
+@app.route('/api/registrar-corredor-rapido', methods=['POST'])
+@require_auth
+def registrar_corredor_rapido():
+    """Registra un corredor directamente sin validación de pago y asigna dorsal automáticamente"""
+    data = request.json
+    
+    # Generar código único de registro
+    codigo_registro = f"REG-{uuid.uuid4().hex[:8].upper()}"
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Obtener el último dorsal asignado
+            cur.execute('SELECT MAX(dorsal) FROM registros WHERE dorsal IS NOT NULL')
+            result = cur.fetchone()
+            max_dorsal = result['max'] if result and result['max'] is not None else None
+            
+            # Generar dorsal secuencial comenzando desde 001
+            if max_dorsal is None:
+                dorsal = 1
+            else:
+                dorsal = max_dorsal + 1
+            
+            print(f"Asignando dorsal {dorsal} al código {codigo_registro}")
+            
+            # Insertar registro con estado 'pagado' y dorsal asignado
+            cur.execute('''
+                INSERT INTO registros (carrera_id, nombre, apellido, edad, genero, correo, team, categoria, codigo_registro, estado, dorsal, fecha_validacion)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                data.get('carrera_id', 1),
+                data['nombre'],
+                data['apellido'],
+                data['edad'],
+                data['genero'],
+                data['correo'],
+                data.get('team'),
+                data['categoria'],
+                codigo_registro,
+                'pagado',  # Estado directo pagado
+                dorsal,
+                datetime.now()
+            ))
+            conn.commit()
+        
+        # Enviar correo al corredor con dorsal
+        asunto = "¡Registrado! Tu Dorsal para la Carrera del Grinch"
+        cuerpo = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background-color: #38a169; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
+                    .content {{ background-color: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                    .dorsal {{ background-color: #38a169; color: white; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; border-radius: 10px; margin: 20px 0; }}
+                    .info-item {{ display: flex; align-items: start; gap: 10px; margin: 15px 0; }}
+                    .icon {{ color: #38a169; min-width: 20px; }}
+                    .footer {{ text-align: center; margin-top: 30px; color: #666; font-size: 14px; }}
+                    ul {{ padding-left: 20px; }}
+                    li {{ margin: 8px 0; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h2 style="margin: 0;">¡Tu Inscripción ha sido Confirmada!</h2>
+                    </div>
+                    <div class="content">
+                        <p>Hola <strong>{data['nombre']}</strong>,</p>
+                        <p>¡Estás oficialmente registrado en la Carrera del Grinch! Aquí está tu información:</p>
+                        
+                        <div class="dorsal">
+                            DORSAL: {str(dorsal).zfill(3)}
+                        </div>
+                        
+                        <h3 style="color: #38a169; margin-top: 30px;">Información de la Carrera:</h3>
+                        
+                        <div class="info-item">
+                            <span class="icon">📅</span>
+                            <div><strong>Fecha:</strong> 21 de diciembre de 2025</div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <span class="icon">🕐</span>
+                            <div><strong>Hora:</strong> Desde las 6:00 a.m.</div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <span class="icon">📍</span>
+                            <div><strong>Lugar:</strong> Cancha de San Pablo Viejo, David, Chiriquí</div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <span class="icon">🏃</span>
+                            <div><strong>Categoría:</strong> {data['categoria']}</div>
+                        </div>
+                        
+                        <h3 style="color: #38a169; margin-top: 30px;">Instrucciones Importantes:</h3>
+                        <ul>
+                            <li>Presentarse 30 minutos antes de la hora de inicio</li>
+                            <li>Llevar identificación válida</li>
+                            <li>Usar el dorsal en la parte frontal del pecho</li>
+                            <li>Recoger tu kit en el punto de entrega</li>
+                            <li>Hidratarse bien antes de la carrera</li>
+                        </ul>
+                        
+                        <div class="footer">
+                            <p><strong>¡Que disfrutes la carrera!</strong></p>
+                            <p>VO2Max Team</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """
+        
+        # Enviar correo al admin
+        asunto_admin = f"Nuevo Registro Rápido: {data['nombre']} {data['apellido']} - Dorsal {str(dorsal).zfill(3)}"
+        cuerpo_admin = f"""
+        <html>
+            <body>
+                <h2>Nuevo Registro Rápido de Corredor</h2>
+                <p><strong>Código:</strong> {codigo_registro}</p>
+                <p><strong>Nombre:</strong> {data['nombre']} {data['apellido']}</p>
+                <p><strong>Dorsal Asignado:</strong> {str(dorsal).zfill(3)}</p>
+                <p><strong>Correo:</strong> {data['correo']}</p>
+                <p><strong>Edad:</strong> {data['edad']}</p>
+                <p><strong>Género:</strong> {data['genero']}</p>
+                <p><strong>Categoría:</strong> {data['categoria']}</p>
+                <p><strong>Team:</strong> {data.get('team', 'N/A')}</p>
+                <p><strong>Hora de Registro:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </body>
+        </html>
+        """
+        
+        send_email(data['correo'], asunto, cuerpo)
+        send_email(ADMIN_EMAIL, asunto_admin, cuerpo_admin)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Corredor registrado exitosamente con dorsal {str(dorsal).zfill(3)}',
+            'codigo': codigo_registro,
+            'dorsal': dorsal,
+            'dorsal_formatted': str(dorsal).zfill(3),
+            'nombre': data['nombre'],
+            'apellido': data['apellido'],
+            'categoria': data['categoria']
+        })
+    except Exception as e:
+        conn.rollback()
+        print(f"Error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
 # Endpoint: Subir comprobante de pago
 @app.route('/api/subir-comprobante', methods=['POST'])
 def subir_comprobante():
