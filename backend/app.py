@@ -642,18 +642,19 @@ def get_all_carreras():
 # Endpoint: Obtener contador de registros
 @app.route('/api/contador-registros', methods=['GET'])
 def contador_registros():
-    """Obtiene el número total de registros y si las inscripciones están abiertas"""
+    """Obtiene el número de registros validados (pagados) con dorsal y si las inscripciones están abiertas"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
     
     try:
         with conn.cursor() as cur:
-            cur.execute('SELECT COUNT(*) as total FROM registros')
+            # Contar solo registros validados (estado = 'pagado') y con dorsal asignado
+            cur.execute('SELECT COUNT(*) as total FROM registros WHERE estado = %s AND dorsal IS NOT NULL', ('pagado',))
             resultado = cur.fetchone()
             total = resultado[0] if resultado else 0
             
-            # Si hay 300 o más registros, las inscripciones están cerradas
+            # Si hay 300 o más registros validados, las inscripciones están cerradas
             inscripciones_abiertas = total < 300
             
             return jsonify({
