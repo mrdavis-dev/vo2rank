@@ -639,6 +639,34 @@ def get_all_carreras():
     finally:
         conn.close()
 
+# Endpoint: Obtener contador de registros
+@app.route('/api/contador-registros', methods=['GET'])
+def contador_registros():
+    """Obtiene el número total de registros y si las inscripciones están abiertas"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute('SELECT COUNT(*) as total FROM registros')
+            resultado = cur.fetchone()
+            total = resultado[0] if resultado else 0
+            
+            # Si hay 300 o más registros, las inscripciones están cerradas
+            inscripciones_abiertas = total < 300
+            
+            return jsonify({
+                'total': total,
+                'inscripciones_abiertas': inscripciones_abiertas,
+                'limite': 300
+            })
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
 # Endpoint: Registrar corredor
 @app.route('/api/registrar-corredor', methods=['POST'])
 def registrar_corredor():

@@ -49,10 +49,10 @@
             <img src="img/logovo2max.png" alt="Logo VO2Max Team" class="h-20 object-contain mb-4"
                  onerror="this.onerror=null; this.src='https://placehold.co/180x80/38a169/ffffff?text=VO2MAX+LOGO'">
 
-            <h1 class="text-3xl font-extrabold text-grinch-green mb-2 text-center">
+            <h1 class="text-3xl font-extrabold text-grinch-green mb-2 text-center" id="pageTitle">
                 ¡Corre como el Grinch!
             </h1>
-            <p class="text-base text-gray-600 text-center">
+            <p class="text-base text-gray-600 text-center" id="pageSubtitle">
                 Completa tus datos y asegura tu lugar en la carrera navideña de VO2Max Team.
             </p>
             
@@ -90,7 +90,7 @@
             </p>
         </div>
 
-        <div class="p-8 sm:p-10 bg-gray-50 flex-grow">
+        <div class="p-8 sm:p-10 bg-gray-50 flex-grow" id="formContainer">
             <form id="registrationForm" class="space-y-6">
                 <!-- Nombre y Apellido -->
                 <div class="flex flex-col sm:flex-row gap-4">
@@ -181,6 +181,72 @@
 
     <!-- Script de lógica de formulario, categorías y modal -->
     <script>
+        // Función para obtener el estado de las inscripciones
+        async function verificarEstadoInscripciones() {
+            try {
+                const API_BASE = window.location.hostname === 'localhost' 
+                    ? `${window.location.protocol}//${window.location.hostname}:5000`
+                    : window.location.origin;
+                const apiUrl = `${API_BASE}/api/contador-registros`;
+                
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                
+                if (!data.inscripciones_abiertas) {
+                    // Inscripciones cerradas
+                    mostrarInscripcionesCerradas(data.total);
+                } else {
+                    // Inscripciones abiertas - mostrar formulario
+                    mostrarFormulario(data.total);
+                }
+            } catch (error) {
+                console.error('Error al verificar estado de inscripciones:', error);
+                // Si hay error, mostrar el formulario
+                mostrarFormulario(null);
+            }
+        }
+
+        function mostrarInscripcionesCerradas(totalRegistros) {
+            const formContainer = document.getElementById('formContainer');
+            const pageTitle = document.getElementById('pageTitle');
+            const pageSubtitle = document.getElementById('pageSubtitle');
+            
+            pageTitle.textContent = '¡Inscripciones Cerradas!';
+            pageSubtitle.textContent = 'Lo sentimos, hemos alcanzado el límite de participantes.';
+            
+            formContainer.innerHTML = `
+                <div class="bg-red-50 border-2 border-red-500 rounded-lg p-8 text-center">
+                    <i class="fas fa-times-circle text-red-600 text-5xl mb-4"></i>
+                    <h2 class="text-2xl font-bold text-red-600 mb-3">¡Inscripciones Cerradas!</h2>
+                    <p class="text-gray-700 mb-4 text-lg">
+                        Hemos alcanzado el límite máximo de <strong>${totalRegistros || 300} participantes</strong> para la Carrera del Grinch.
+                    </p>
+                    <p class="text-gray-600 mb-6">
+                        Agradecemos tu interés. ¡Esperamos verte en la próxima edición!
+                    </p>
+                    <a href="index.html" class="inline-block grinch-green text-white py-2 px-6 rounded-lg font-semibold hover:bg-green-700 transition duration-150">
+                        Volver al Inicio
+                    </a>
+                </div>
+            `;
+        }
+
+        function mostrarFormulario(totalRegistros) {
+            // El formulario ya está en el HTML, solo asegurarse que está visible
+            const formContainer = document.getElementById('formContainer');
+            if (totalRegistros !== null) {
+                // Opcionalmente mostrar el contador de participantes
+                const infoRegistros = document.createElement('div');
+                infoRegistros.className = 'bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 text-sm text-blue-800';
+                infoRegistros.innerHTML = `<i class="fas fa-info-circle"></i> Participantes registrados: <strong>${totalRegistros} de 300</strong>`;
+                
+                const form = formContainer.querySelector('form');
+                if (form) {
+                    form.parentNode.insertBefore(infoRegistros, form);
+                }
+            }
+        }
+
         // Funciones auxiliares para el modal
         const modal = document.getElementById('dataModal');
         const formDataDisplay = document.getElementById('formDataDisplay');
@@ -258,7 +324,10 @@
         }
 
         // Inicializar la categoría al cargar
-        document.addEventListener('DOMContentLoaded', updateCategory);
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCategory();
+            verificarEstadoInscripciones();
+        });
 
         // Manejo del envío del formulario
         document.getElementById('registrationForm').addEventListener('submit', function(event) {
