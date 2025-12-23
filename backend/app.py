@@ -12,6 +12,7 @@ import secrets
 import hashlib
 from PIL import Image
 import io
+import pdfplumber
 
 load_dotenv()
 
@@ -92,6 +93,70 @@ def verificar_token(token):
     return None
 
 CORS(app, supports_credentials=True)
+
+# Función auxiliar para convertir tiempo a segundos
+def tiempo_a_segundos(tiempo_str):
+    """Convierte un tiempo en varios formatos a segundos"""
+    if not tiempo_str:
+        return float('inf')  # Los tiempos None van al final
+    
+    tiempo_str = str(tiempo_str).strip()
+    
+    try:
+        # Remover caracteres comunes y normalizar dos puntos
+        tiempo_str = tiempo_str.replace('s', '').replace('m', '').replace('h', '')
+        # Normalizar diferentes tipos de dos puntos a ":"
+        tiempo_str = tiempo_str.replace('∶', ':').replace(':', ':')
+        
+        partes = tiempo_str.split(':')
+        partes = [p.strip() for p in partes if p.strip()]
+        
+        if len(partes) == 3:  # HH:MM:SS
+            horas = int(partes[0])
+            minutos = int(partes[1])
+            segundos = float(partes[2])  # Usar float para decimales
+            return horas * 3600 + minutos * 60 + segundos
+        elif len(partes) == 2:  # MM:SS
+            minutos = int(partes[0])
+            segundos = float(partes[1])  # Usar float para decimales
+            return minutos * 60 + segundos
+        elif len(partes) == 1:  # Solo segundos o minutos
+            # Asumimos que es segundos si es un número pequeño, minutos si es grande
+            valor = float(partes[0])
+            return valor if valor < 3600 else valor * 60
+        else:
+            return float('inf')
+    except Exception as e:
+        print(f"Error convirtiendo tiempo '{tiempo_str}': {e}")
+        return float('inf')
+
+def recalcular_posiciones_ranking(conn, ranking_id):
+    """Recalcula las posiciones de todos los registros en un ranking basándose en el tiempo"""
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Obtener todos los registros del ranking
+            cur.execute('''
+                SELECT id, tiempo FROM ranking_registros 
+                WHERE ranking_id = %s
+            ''', (ranking_id,))
+            
+            registros = cur.fetchall()
+            
+            # Ordenar por tiempo convertido a segundos
+            registros_ordenados = sorted(registros, key=lambda x: tiempo_a_segundos(x['tiempo']))
+            
+            # Actualizar las posiciones de forma secuencial
+            for nueva_posicion, registro in enumerate(registros_ordenados, 1):
+                cur.execute('''
+                    UPDATE ranking_registros 
+                    SET posicion = %s
+                    WHERE id = %s
+                ''', (nueva_posicion, registro['id']))
+            
+            conn.commit()
+    except Exception as e:
+        print(f"Error recalculando posiciones: {e}")
+        conn.rollback()
 
 # Configuración de carpetas
 # NOTA: En Railway, los archivos se guardan en el sistema de archivos efímero del contenedor
@@ -300,6 +365,51 @@ def init_db():
             cur.execute('''
                 CREATE INDEX IF NOT EXISTS idx_admin_tokens_expires_at 
                 ON admin_tokens(expires_at)
+            ''')
+            
+            # Tabla de rankings
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS rankings (
+                    id SERIAL PRIMARY KEY,
+                    titulo VARCHAR(255) NOT NULL,
+                    descripcion TEXT,
+                    carrera_id INT,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    estado VARCHAR(50) DEFAULT 'activo',
+                    creado_por INT,
+                    FOREIGN KEY (carrera_id) REFERENCES carreras(id) ON DELETE SET NULL,
+                    FOREIGN KEY (creado_por) REFERENCES administradores(id) ON DELETE SET NULL
+                )
+            ''')
+            
+            # Tabla de registros en rankings
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS ranking_registros (
+                    id SERIAL PRIMARY KEY,
+                    ranking_id INT NOT NULL,
+                    posicion INT NOT NULL,
+                    nombre VARCHAR(100) NOT NULL,
+                    apellido VARCHAR(100),
+                    tiempo VARCHAR(20),
+                    categoria VARCHAR(50),
+                    equipo VARCHAR(100),
+                    puntos DECIMAL(10,2),
+                    dorsal INT,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (ranking_id) REFERENCES rankings(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Índices para rankings
+            cur.execute('''
+                CREATE INDEX IF NOT EXISTS idx_ranking_registros_ranking_id 
+                ON ranking_registros(ranking_id)
+            ''')
+            
+            cur.execute('''
+                CREATE INDEX IF NOT EXISTS idx_rankings_carrera_id 
+                ON rankings(carrera_id)
             ''')
             
             # Modificar comprobante a BYTEA si es VARCHAR (nota: esto es complicado en PostgreSQL)
@@ -1005,7 +1115,7 @@ def subir_comprobante():
                 print(f"✓ Imagen comprimida: {original_size}b → {compressed_size}b ({100 - int(compressed_size*100/original_size)}% reducción)")
             except Exception as e:
                 print(f"⚠ Error comprimiendo imagen, guardando original: {e}")
-                print(f"✓ Guardando imagen original: {filename} ({original_size} bytes)")
+                print(f"✓ Guardando imagen original: {short_filename} ({original_size} bytes)")
         
         # Determinar mimetype
         mimetype_map = {
@@ -1409,6 +1519,705 @@ def get_registros_inscritos():
             return jsonify(registros)
     except Exception as e:
         print(f"Error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# ===== ENDPOINTS DE RANKINGS =====
+
+# Obtener todos los rankings
+@app.route('/api/rankings', methods=['GET'])
+def get_rankings():
+    """Obtiene todos los rankings"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute('''
+                SELECT id, titulo, descripcion, carrera_id, estado, 
+                       fecha_creacion, fecha_actualizacion
+                FROM rankings
+                WHERE estado = 'activo'
+                ORDER BY fecha_actualizacion DESC
+            ''')
+            rankings = cur.fetchall()
+            return jsonify(rankings)
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Obtener un ranking específico con sus registros
+@app.route('/api/rankings/<int:ranking_id>', methods=['GET'])
+def get_ranking(ranking_id):
+    """Obtiene un ranking específico con todos sus registros"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Obtener info del ranking
+            cur.execute('''
+                SELECT id, titulo, descripcion, carrera_id, estado, 
+                       fecha_creacion, fecha_actualizacion
+                FROM rankings
+                WHERE id = %s
+            ''', (ranking_id,))
+            ranking = cur.fetchone()
+            
+            if not ranking:
+                return jsonify({'error': 'Ranking no encontrado'}), 404
+            
+            # Obtener registros del ranking ordenados por tiempo de menor a mayor
+            cur.execute('''
+                SELECT id, posicion, nombre, apellido, tiempo, categoria, 
+                       equipo, puntos, dorsal
+                FROM ranking_registros
+                WHERE ranking_id = %s
+                ORDER BY posicion ASC
+            ''', (ranking_id,))
+            registros = cur.fetchall()
+            
+            # Reordenar en Python usando la función de conversión de tiempos
+            registros = sorted(registros, key=lambda x: tiempo_a_segundos(x['tiempo']))
+            
+            # Recalcular posiciones secuenciales
+            for idx, reg in enumerate(registros, 1):
+                reg['posicion'] = idx
+            
+            ranking['registros'] = registros
+            return jsonify(ranking)
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Crear ranking desde PDF
+@app.route('/api/rankings/crear-desde-pdf', methods=['POST'])
+@require_auth
+def crear_ranking_desde_pdf():
+    """Crea un ranking extrayendo datos de un PDF"""
+    titulo = request.form.get('titulo')
+    descripcion = request.form.get('descripcion')
+    carrera_id = request.form.get('carrera_id', type=int)
+    
+    if not titulo or 'archivo_pdf' not in request.files:
+        return jsonify({'error': 'Título y archivo PDF son requeridos'}), 400
+    
+    pdf_file = request.files['archivo_pdf']
+    
+    if not pdf_file.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Solo se aceptan archivos PDF'}), 400
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        # Leer y procesar el PDF
+        pdf_data = pdf_file.read()
+        registros_extraidos = []
+        
+        try:
+            with pdfplumber.open(io.BytesIO(pdf_data)) as pdf:
+                print(f"📄 PDF abierto: {len(pdf.pages)} páginas")
+                
+                # Procesar todas las páginas
+                for page_num, page in enumerate(pdf.pages):
+                    print(f"\n📖 Procesando página {page_num + 1}/{len(pdf.pages)}...")
+                    
+                    # Intentar extraer tablas con diferentes estrategias
+                    tables = page.extract_tables()
+                    
+                    if tables:
+                        print(f"  ✓ Se encontraron {len(tables)} tabla(s)")
+                        
+                        for table_idx, table in enumerate(tables):
+                            print(f"    Tabla {table_idx + 1}: {len(table)} filas x {len(table[0]) if table else 0} columnas")
+                            
+                            # Identificar columnas por encabezado (primera fila)
+                            if not table or len(table) < 2:
+                                continue
+                            
+                            encabezado = [str(h).strip().lower() if h else "" for h in table[0]]
+                            print(f"      Encabezado (normalized): {encabezado}")
+                            
+                            # Buscar índices de columnas importantes
+                            idx_posicion = None
+                            idx_bib = None
+                            idx_nombre = None
+                            idx_categoria = None
+                            idx_tiempo = None
+                            
+                            for col_idx, col_nombre in enumerate(encabezado):
+                                if 'pl' in col_nombre or 'posicion' in col_nombre or 'position' in col_nombre:
+                                    idx_posicion = col_idx
+                                elif 'bib' in col_nombre or 'dorsal' in col_nombre or 'number' in col_nombre:
+                                    idx_bib = col_idx
+                                elif 'name' in col_nombre or 'nombre' in col_nombre:
+                                    idx_nombre = col_idx
+                                elif 'category' in col_nombre or 'categoria' in col_nombre or 'cat' in col_nombre:
+                                    idx_categoria = col_idx
+                                elif 'time' in col_nombre or 'tiempo' in col_nombre:
+                                    idx_tiempo = col_idx
+                            
+                            print(f"      Columnas: posicion={idx_posicion}, bib={idx_bib}, nombre={idx_nombre}, categoria={idx_categoria}, tiempo={idx_tiempo}")
+                            
+                            # Si no encontró las columnas por encabezado, usar posiciones por defecto
+                            if idx_posicion is None:
+                                idx_posicion = 0
+                            if idx_nombre is None:
+                                idx_nombre = 2
+                            
+                            # Procesar filas de datos (desde la fila 1, saltando encabezado)
+                            for row_idx in range(1, len(table)):
+                                row = table[row_idx]
+                                
+                                if not row or not any(row):
+                                    continue
+                                
+                                try:
+                                    # Extraer posición
+                                    posicion_str = str(row[idx_posicion]).strip() if idx_posicion < len(row) and row[idx_posicion] else ""
+                                    if not posicion_str or not posicion_str.isdigit():
+                                        continue
+                                    
+                                    posicion = int(posicion_str)
+                                    
+                                    # Extraer nombre
+                                    nombre_completo = str(row[idx_nombre]).strip() if idx_nombre < len(row) and row[idx_nombre] else ""
+                                    if not nombre_completo:
+                                        continue
+                                    
+                                    # Extraer dorsal/bib
+                                    bib = None
+                                    if idx_bib is not None and idx_bib < len(row) and row[idx_bib]:
+                                        bib_str = str(row[idx_bib]).strip()
+                                        if bib_str.isdigit():
+                                            bib = bib_str
+                                    
+                                    # Extraer tiempo (buscar específicamente en la columna Time)
+                                    tiempo = None
+                                    if idx_tiempo is not None and idx_tiempo < len(row) and row[idx_tiempo]:
+                                        tiempo_str = str(row[idx_tiempo]).strip()
+                                        # Validar que sea un tiempo (contenga : o ∶)
+                                        if tiempo_str and (':' in tiempo_str or '∶' in tiempo_str):
+                                            tiempo = tiempo_str
+                                    
+                                    # Extraer categoría
+                                    categoria = None
+                                    if idx_categoria is not None and idx_categoria < len(row) and row[idx_categoria]:
+                                        categoria = str(row[idx_categoria]).strip()
+                                    
+                                    # Separar nombre y apellido
+                                    nombre_parts = nombre_completo.split()
+                                    primer_nombre = nombre_parts[0] if nombre_parts else ""
+                                    apellido = ' '.join(nombre_parts[1:]) if len(nombre_parts) > 1 else ""
+                                    
+                                    if posicion and primer_nombre:
+                                        registros_extraidos.append({
+                                            'posicion': posicion,
+                                            'nombre': primer_nombre,
+                                            'apellido': apellido,
+                                            'tiempo': tiempo,
+                                            'categoria': categoria,
+                                            'equipo': None,
+                                            'dorsal': bib,
+                                            'puntos': None
+                                        })
+                                        print(f"      ✓ {posicion}. {primer_nombre} {apellido} ({categoria}) - {tiempo}")
+                                    
+                                except (ValueError, IndexError, AttributeError) as e:
+                                    print(f"      ⚠️  Error en fila {row_idx}: {e}")
+                                    continue
+                    else:
+                        print(f"  ⚠️  No se encontraron tablas, intentando extraer texto...")
+                        text = page.extract_text()
+                        if text:
+                            print(f"  Texto: {text[:200]}...")
+        
+        except Exception as pdf_error:
+            print(f"❌ Error procesando PDF: {pdf_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f'Error al procesar PDF: {str(pdf_error)}'}), 400
+        
+        # Si no se extrajeron registros de tablas, intentar parsear de texto
+        if not registros_extraidos:
+            print(f"\n⚠️  No se encontraron registros en tablas, intentando parsear texto...")
+            
+            with pdfplumber.open(io.BytesIO(pdf_data)) as pdf:
+                texto_completo = ""
+                for page in pdf.pages:
+                    texto_completo += page.extract_text() + "\n"
+            
+            # Parsear líneas de texto
+            lineas = texto_completo.split('\n')
+            
+            for linea in lineas:
+                if not linea.strip():
+                    continue
+                
+                # Saltar encabezados
+                if 'Pl' in linea and 'Bib' in linea:
+                    print(f"  Encabezado detectado: {linea[:50]}")
+                    continue
+                
+                try:
+                    # Dividir por espacios múltiples
+                    partes = linea.strip().split()
+                    
+                    if len(partes) < 3:
+                        continue
+                    
+                    # Intentar parsear posición (debe ser número)
+                    if not partes[0].isdigit():
+                        continue
+                    
+                    posicion = int(partes[0])
+                    
+                    # Estructura esperada: [Posición, Dorsal, Nombre(s)..., Categoría, Tiempo]
+                    # Buscar dorsal (2do elemento, debe ser número)
+                    dorsal = None
+                    nombre_start = 1
+                    
+                    if len(partes) > 1 and partes[1].isdigit():
+                        dorsal = partes[1]
+                        nombre_start = 2
+                    else:
+                        nombre_start = 1
+                    
+                    # Buscar categoría y tiempo desde el final
+                    categoria = None
+                    tiempo = None
+                    nombre_end = len(partes)
+                    
+                    for idx in range(len(partes) - 1, nombre_start - 1, -1):
+                        parte = partes[idx]
+                        
+                        # Buscar tiempo (contiene ":" o "∶" - HH:MM:SS o MM:SS.S)
+                        # Validar que tenga formato de tiempo
+                        if (':' in parte or '∶' in parte) and not tiempo:
+                            # Debe tener dígitos alrededor de los dos puntos
+                            if any(c.isdigit() for c in parte):
+                                tiempo = parte
+                                nombre_end = idx
+                                continue
+                        
+                        # Buscar categoría (M/F seguido de números, o Juvenil)
+                        if not categoria:
+                            if (parte.startswith('M') or parte.startswith('F')) and any(c.isdigit() for c in parte):
+                                categoria = parte
+                                nombre_end = idx
+                                continue
+                            
+                            if 'Juvenil' in parte or 'Senior' in parte or 'Master' in parte or 'y Más' in parte:
+                                categoria = parte
+                                nombre_end = idx
+                                continue
+                        if 'Juvenil' in parte or 'Senior' in parte or 'Master' in parte:
+                            categoria = parte
+                            nombre_end = idx
+                            continue
+                    
+                    # Extraer nombre (entre inicio y fin)
+                    nombre_partes = partes[nombre_start:nombre_end]
+                    nombre_completo = ' '.join(nombre_partes)
+                    
+                    if not nombre_completo or not nombre_completo.strip():
+                        continue
+                    
+                    # Limpiar nombres que contienen caracteres especiales o números
+                    if any(c.isdigit() for c in nombre_completo):
+                        continue
+                    
+                    # Separar nombre y apellido
+                    nombre_split = nombre_completo.split()
+                    primer_nombre = nombre_split[0] if nombre_split else ""
+                    apellido = ' '.join(nombre_split[1:]) if len(nombre_split) > 1 else ""
+                    
+                    if posicion and primer_nombre and len(primer_nombre) > 1:
+                        registros_extraidos.append({
+                            'posicion': posicion,
+                            'nombre': primer_nombre,
+                            'apellido': apellido,
+                            'tiempo': tiempo,
+                            'categoria': categoria,
+                            'equipo': None,
+                            'dorsal': dorsal,
+                            'puntos': None
+                        })
+                        print(f"  ✓ {posicion}. {primer_nombre} {apellido} ({categoria}) - {tiempo}")
+                
+                except Exception as e:
+                    print(f"  ⚠️  Error en línea: {linea[:60]} - {e}")
+                    continue
+        
+        if not registros_extraidos:
+            print(f"\n❌ No se pudo extraer datos del PDF")
+            return jsonify({
+                'error': 'No se pudo extraer datos del PDF. Asegúrate de que contenga una tabla con los resultados.'
+            }), 400
+        
+        print(f"\n✓ Total de registros extraídos: {len(registros_extraidos)}")
+        
+        # Insertar ranking y registros en BD
+        admin_id = get_admin_id()
+        
+        with conn.cursor() as cur:
+            # Crear ranking
+            cur.execute('''
+                INSERT INTO rankings (titulo, descripcion, carrera_id, estado, creado_por)
+                VALUES (%s, %s, %s, 'activo', %s)
+                RETURNING id
+            ''', (titulo, descripcion, carrera_id, admin_id))
+            
+            ranking_id = cur.fetchone()[0]
+            
+            # Insertar registros
+            for reg in registros_extraidos:
+                cur.execute('''
+                    INSERT INTO ranking_registros 
+                    (ranking_id, posicion, nombre, apellido, tiempo, categoria, equipo, dorsal, puntos)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    ranking_id,
+                    reg['posicion'],
+                    reg['nombre'],
+                    reg['apellido'],
+                    reg['tiempo'],
+                    reg['categoria'],
+                    reg['equipo'],
+                    reg.get('dorsal'),
+                    reg['puntos']
+                ))
+            
+            conn.commit()
+        
+        # Recalcular posiciones basándose en tiempos
+        recalcular_posiciones_ranking(conn, ranking_id)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Ranking creado exitosamente con {len(registros_extraidos)} registros',
+            'ranking_id': ranking_id,
+            'registros_count': len(registros_extraidos)
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creando ranking desde PDF: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Crear ranking manualmente
+@app.route('/api/rankings/crear', methods=['POST'])
+@require_auth
+def crear_ranking():
+    """Crea un ranking manualmente con registros individuales"""
+    data = request.json
+    titulo = data.get('titulo')
+    descripcion = data.get('descripcion')
+    carrera_id = data.get('carrera_id')
+    registros = data.get('registros', [])
+    
+    if not titulo or not registros:
+        return jsonify({'error': 'Título y registros son requeridos'}), 400
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        admin_id = get_admin_id()
+        
+        with conn.cursor() as cur:
+            # Crear ranking
+            cur.execute('''
+                INSERT INTO rankings (titulo, descripcion, carrera_id, estado, creado_por)
+                VALUES (%s, %s, %s, 'activo', %s)
+                RETURNING id
+            ''', (titulo, descripcion, carrera_id, admin_id))
+            
+            ranking_id = cur.fetchone()[0]
+            
+            # Insertar registros
+            for reg in registros:
+                cur.execute('''
+                    INSERT INTO ranking_registros 
+                    (ranking_id, posicion, nombre, apellido, tiempo, categoria, equipo, puntos, dorsal)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    ranking_id,
+                    reg.get('posicion'),
+                    reg.get('nombre'),
+                    reg.get('apellido'),
+                    reg.get('tiempo'),
+                    reg.get('categoria'),
+                    reg.get('equipo'),
+                    reg.get('puntos'),
+                    reg.get('dorsal')
+                ))
+            
+            conn.commit()
+        
+        # Recalcular posiciones basándose en tiempos
+        recalcular_posiciones_ranking(conn, ranking_id)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Ranking creado exitosamente con {len(registros)} registros',
+            'ranking_id': ranking_id,
+            'registros_count': len(registros)
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creando ranking: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Editar un registro de ranking
+@app.route('/api/rankings/<int:ranking_id>/registros/<int:registro_id>', methods=['PUT'])
+@require_auth
+def editar_registro_ranking(ranking_id, registro_id):
+    """Edita un registro dentro de un ranking y reordena por tiempo"""
+    data = request.json
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Verificar que el registro pertenece al ranking
+            cur.execute('''
+                SELECT id FROM ranking_registros 
+                WHERE id = %s AND ranking_id = %s
+            ''', (registro_id, ranking_id))
+            
+            if not cur.fetchone():
+                return jsonify({'error': 'Registro no encontrado en este ranking'}), 404
+            
+            # Actualizar registro
+            cur.execute('''
+                UPDATE ranking_registros 
+                SET nombre = %s, apellido = %s, tiempo = %s, 
+                    categoria = %s, equipo = %s, puntos = %s, dorsal = %s
+                WHERE id = %s AND ranking_id = %s
+            ''', (
+                data.get('nombre'),
+                data.get('apellido'),
+                data.get('tiempo'),
+                data.get('categoria'),
+                data.get('equipo'),
+                data.get('puntos'),
+                data.get('dorsal'),
+                registro_id,
+                ranking_id
+            ))
+            
+            conn.commit()
+        
+        # Recalcular posiciones basándose en tiempos
+        recalcular_posiciones_ranking(conn, ranking_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Registro actualizado y rankings reordenados exitosamente'
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error editando registro: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Eliminar un registro de ranking
+@app.route('/api/rankings/<int:ranking_id>/registros/<int:registro_id>', methods=['DELETE'])
+@require_auth
+def eliminar_registro_ranking(ranking_id, registro_id):
+    """Elimina un registro de un ranking"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            # Verificar que el registro pertenece al ranking
+            cur.execute('''
+                SELECT id FROM ranking_registros 
+                WHERE id = %s AND ranking_id = %s
+            ''', (registro_id, ranking_id))
+            
+            if not cur.fetchone():
+                return jsonify({'error': 'Registro no encontrado en este ranking'}), 404
+            
+            # Eliminar registro
+            cur.execute('''
+                DELETE FROM ranking_registros 
+                WHERE id = %s AND ranking_id = %s
+            ''', (registro_id, ranking_id))
+            
+            conn.commit()
+        
+        # Recalcular posiciones basándose en tiempos
+        recalcular_posiciones_ranking(conn, ranking_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Registro eliminado exitosamente'
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error eliminando registro: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Agregar registro a un ranking existente
+@app.route('/api/rankings/<int:ranking_id>/registros', methods=['POST'])
+@require_auth
+def agregar_registro_ranking(ranking_id):
+    """Agrega un nuevo registro a un ranking existente"""
+    data = request.json
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            # Verificar que el ranking existe
+            cur.execute('SELECT id FROM rankings WHERE id = %s', (ranking_id,))
+            if not cur.fetchone():
+                return jsonify({'error': 'Ranking no encontrado'}), 404
+            
+            # Obtener la próxima posición
+            cur.execute('''
+                SELECT MAX(posicion) FROM ranking_registros WHERE ranking_id = %s
+            ''', (ranking_id,))
+            max_pos = cur.fetchone()[0]
+            proxima_posicion = (max_pos or 0) + 1
+            
+            # Insertar registro
+            cur.execute('''
+                INSERT INTO ranking_registros 
+                (ranking_id, posicion, nombre, apellido, tiempo, categoria, equipo, puntos, dorsal)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (
+                ranking_id,
+                data.get('posicion', proxima_posicion),
+                data.get('nombre'),
+                data.get('apellido'),
+                data.get('tiempo'),
+                data.get('categoria'),
+                data.get('equipo'),
+                data.get('puntos'),
+                data.get('dorsal')
+            ))
+            
+            registro_id = cur.fetchone()[0]
+            conn.commit()
+        
+        # Recalcular posiciones basándose en tiempos
+        recalcular_posiciones_ranking(conn, ranking_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Registro agregado exitosamente',
+            'registro_id': registro_id
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error agregando registro: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Eliminar un ranking
+@app.route('/api/rankings/<int:ranking_id>', methods=['DELETE'])
+@require_auth
+def eliminar_ranking(ranking_id):
+    """Elimina un ranking completamente"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            # Verificar que existe
+            cur.execute('SELECT id FROM rankings WHERE id = %s', (ranking_id,))
+            if not cur.fetchone():
+                return jsonify({'error': 'Ranking no encontrado'}), 404
+            
+            # Eliminar (los registros se eliminan automáticamente por CASCADE)
+            cur.execute('DELETE FROM rankings WHERE id = %s', (ranking_id,))
+            conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Ranking eliminado exitosamente'
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error eliminando ranking: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Editar ranking
+@app.route('/api/rankings/<int:ranking_id>', methods=['PUT'])
+@require_auth
+def editar_ranking(ranking_id):
+    """Edita la información de un ranking"""
+    data = request.json
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'No se pudo conectar a la base de datos'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            # Verificar que existe
+            cur.execute('SELECT id FROM rankings WHERE id = %s', (ranking_id,))
+            if not cur.fetchone():
+                return jsonify({'error': 'Ranking no encontrado'}), 404
+            
+            # Actualizar
+            cur.execute('''
+                UPDATE rankings 
+                SET titulo = %s, descripcion = %s, estado = %s, fecha_actualizacion = NOW()
+                WHERE id = %s
+            ''', (
+                data.get('titulo'),
+                data.get('descripcion'),
+                data.get('estado'),
+                ranking_id
+            ))
+            
+            conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Ranking actualizado exitosamente'
+        })
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error editando ranking: {e}")
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()

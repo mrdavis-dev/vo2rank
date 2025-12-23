@@ -64,6 +64,18 @@
         </div>
     </section>
 
+    <!-- Sección: Rankings -->
+    <section class="py-16 bg-white">
+        <div class="container mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-8">
+                <i class="fas fa-trophy text-yellow-500 mr-2"></i> Rankings y Resultados
+            </h2>
+            <div id="rankings-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Los rankings se cargarán dinámicamente -->
+            </div>
+        </div>
+    </section>
+
     <!-- Footer -->
     <footer class="bg-gray-800 text-white py-8">
         <div class="container mx-auto text-center">
@@ -190,12 +202,53 @@
             }
         }
 
+        // Cargar rankings
+        async function loadRankings() {
+            try {
+                const response = await fetch(`${API_URL}/rankings`);
+                const rankings = await response.json();
+
+                const container = document.getElementById('rankings-list');
+                container.innerHTML = '';
+
+                if (!rankings || rankings.length === 0) {
+                    container.innerHTML = '<p class="col-span-full text-center text-gray-600">No hay rankings disponibles en este momento.</p>';
+                    return;
+                }
+
+                rankings.forEach(ranking => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white shadow-lg rounded-lg p-6 hover:shadow-xl transition border-l-4 border-yellow-500';
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">${ranking.titulo}</h3>
+                                <p class="text-sm text-gray-600 mt-1">${ranking.descripcion || ''}</p>
+                            </div>
+                            <i class="fas fa-trophy text-yellow-500 text-2xl"></i>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-4">
+                            Actualizado: ${new Date(ranking.fecha_actualizacion).toLocaleDateString('es-ES')}
+                        </p>
+                        <a href="ranking.html?id=${ranking.id}" class="inline-block bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600 transition font-semibold">
+                            Ver Resultados <i class="fas fa-arrow-right ml-2"></i>
+                        </a>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error cargando rankings:', error);
+                document.getElementById('rankings-list').innerHTML = '<p class="col-span-full text-center text-gray-600">Error al cargar rankings.</p>';
+            }
+        }
+
         // Cargar todo al inicializar
         document.addEventListener('DOMContentLoaded', () => {
             loadClubInfo();
             loadCarrerasProximas();
             loadCarrerasRealizadas();
             loadWhatsAppLink();
+            loadRankings();
         });
     </script>
 </body>

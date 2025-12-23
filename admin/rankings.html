@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Rankings - VO2Max Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-lg sticky top-0 z-40">
+        <div class="container mx-auto px-3 md:px-4 py-3 md:py-4 flex justify-between items-center">
+            <h1 class="text-lg md:text-2xl font-bold text-gray-800">Gestión de Rankings</h1>
+            <div class="flex gap-2 md:gap-4">
+                <a href="/admin/index.html" class="bg-blue-500 text-white px-2 md:px-4 py-2 rounded hover:bg-blue-600 text-xs md:text-base">
+                    <i class="fas fa-arrow-left mr-1 md:mr-2"></i> <span class="hidden sm:inline">Volver</span>
+                </a>
+                <button onclick="cerrarSesion()" class="bg-red-500 text-white px-2 md:px-4 py-2 rounded hover:bg-red-600 text-xs md:text-base">
+                    <i class="fas fa-sign-out-alt"></i> <span class="hidden sm:inline">Cerrar</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto py-6 md:py-8 px-3 md:px-4 mt-4 md:mt-6">
+        <!-- Botones de acción -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4 mb-6 md:mb-8">
+            <button onclick="mostrarFormularioCrear()" class="bg-green-500 text-white px-3 md:px-6 py-2 md:py-3 rounded-lg hover:bg-green-600 font-bold flex items-center justify-center gap-2 text-xs md:text-base">
+                <i class="fas fa-plus"></i> <span class="hidden sm:inline">Crear Ranking</span>
+            </button>
+            <button onclick="mostrarFormularioPDF()" class="bg-purple-500 text-white px-3 md:px-6 py-2 md:py-3 rounded-lg hover:bg-purple-600 font-bold flex items-center justify-center gap-2 text-xs md:text-base">
+                <i class="fas fa-file-pdf"></i> <span class="hidden sm:inline">Desde PDF</span>
+            </button>
+            <button onclick="recargarRankings()" class="bg-blue-500 text-white px-3 md:px-6 py-2 md:py-3 rounded-lg hover:bg-blue-600 font-bold flex items-center justify-center gap-2 text-xs md:text-base">
+                <i class="fas fa-sync"></i> <span class="hidden sm:inline">Recargar</span>
+            </button>
+        </div>
+
+        <!-- Lista de Rankings -->
+        <div class="bg-white shadow-md rounded-lg overflow-hidden">
+            <div class="bg-gray-200 px-4 md:px-6 py-3 md:py-4">
+                <h2 class="text-lg md:text-xl font-bold text-gray-800">Rankings Disponibles</h2>
+            </div>
+            <div id="rankings-list" class="divide-y divide-gray-200">
+                <!-- Se cargarán dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Crear Ranking Manual -->
+    <div id="modalCrear" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-3 md:p-4 overflow-y-auto">
+        <div class="bg-white rounded-lg p-4 md:p-8 max-w-2xl w-full my-8">
+            <div class="flex justify-between items-center mb-4 md:mb-6 sticky top-0 bg-white z-10 pb-2">
+                <h2 class="text-xl md:text-2xl font-bold">Crear Ranking Manual</h2>
+                <button onclick="cerrarModalCrear()" class="text-2xl">&times;</button>
+            </div>
+            
+            <form onsubmit="guardarRankingManual(event)" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Título del Ranking</label>
+                    <input type="text" id="input-titulo" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Descripción (opcional)</label>
+                    <textarea id="input-descripcion" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
+                </div>
+
+                <div id="registros-container" class="space-y-4">
+                    <div class="font-semibold text-gray-700 mb-2">Registros</div>
+                    <div id="registros-list" class="space-y-3"></div>
+                    <button type="button" onclick="agregarCampoRegistro()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        + Agregar Corredor
+                    </button>
+                </div>
+
+                <div class="flex gap-4 pt-4">
+                    <button type="submit" class="flex-1 bg-green-500 text-white py-2 px-4 rounded font-bold hover:bg-green-600">
+                        Guardar Ranking
+                    </button>
+                    <button type="button" onclick="cerrarModalCrear()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded font-bold hover:bg-gray-600">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Crear desde PDF -->
+    <div id="modalPDF" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-3 md:p-4 overflow-y-auto">
+        <div class="bg-white rounded-lg p-4 md:p-8 max-w-2xl w-full my-8">
+            <div class="flex justify-between items-center mb-4 md:mb-6 sticky top-0 bg-white z-10 pb-2">
+                <h2 class="text-xl md:text-2xl font-bold">Crear Ranking desde PDF</h2>
+                <button onclick="cerrarModalPDF()" class="text-2xl">&times;</button>
+            </div>
+            
+            <form onsubmit="guardarRankingPDF(event)" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Título del Ranking</label>
+                    <input type="text" id="pdf-titulo" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Descripción (opcional)</label>
+                    <textarea id="pdf-descripcion" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Archivo PDF</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500" onclick="document.getElementById('file-input').click()">
+                        <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+                        <p class="text-gray-600">Haz clic para seleccionar un archivo</p>
+                        <p id="file-name" class="text-sm text-gray-500 mt-2"></p>
+                    </div>
+                    <input type="file" id="file-input" accept=".pdf" style="display:none;" onchange="actualizarNombreArchivo()">
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                    <p><strong>Formato esperado del PDF:</strong></p>
+                    <p>El PDF debe contener una tabla con las siguientes columnas:</p>
+                    <ul class="list-disc list-inside mt-2">
+                        <li>Posición</li>
+                        <li>Nombre (y apellido)</li>
+                        <li>Tiempo (opcional)</li>
+                        <li>Categoría (opcional)</li>
+                        <li>Equipo/Club (opcional)</li>
+                    </ul>
+                </div>
+
+                <div class="flex gap-4 pt-4">
+                    <button type="submit" id="btn-guardar-pdf" class="flex-1 bg-green-500 text-white py-2 px-4 rounded font-bold hover:bg-green-600">
+                        Cargar Ranking
+                    </button>
+                    <button type="button" onclick="cerrarModalPDF()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded font-bold hover:bg-gray-600">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Ver y Editar Ranking -->
+    <div id="modalEditar" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-start justify-center z-50 p-3 md:p-4 overflow-y-auto pt-8">
+        <div class="bg-white rounded-lg p-4 md:p-8 max-w-4xl w-full my-8">
+            <div class="flex justify-between items-center mb-4 md:mb-6 sticky top-0 bg-white z-10 pb-2">
+                <h2 class="text-xl md:text-2xl font-bold" id="modal-titulo-ranking">Editar Ranking</h2>
+                <button onclick="cerrarModalEditar()" class="text-2xl">&times;</button>
+            </div>
+            
+            <div class="mb-6">
+                <h3 class="font-semibold text-gray-700 mb-3">Información del Ranking</h3>
+                <div>
+                    <label class="block text-gray-700 text-sm mb-1">Título</label>
+                    <input type="text" id="edit-titulo" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm mb-1">Descripción</label>
+                    <textarea id="edit-descripcion" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
+                </div>
+                <button onclick="guardarCambiosRanking()" class="bg-blue-500 text-white px-4 py-2 rounded mt-4 hover:bg-blue-600">
+                    Guardar Cambios
+                </button>
+            </div>
+
+            <hr class="my-6">
+
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-gray-700">Registros</h3>
+                    <button onclick="agregarRegistroAlRanking()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                        + Agregar Corredor
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="border px-4 py-2 text-left">Posición</th>
+                                <th class="border px-4 py-2 text-left">Nombre</th>
+                                <th class="border px-4 py-2 text-left">Apellido</th>
+                                <th class="border px-4 py-2 text-left">Tiempo</th>
+                                <th class="border px-4 py-2 text-left">Categoría</th>
+                                <th class="border px-4 py-2 text-left">Equipo</th>
+                                <th class="border px-4 py-2 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registros-ranking-list" class="divide-y">
+                            <!-- Se cargarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex gap-4 pt-6">
+                <button onclick="cerrarModalEditar()" class="flex-1 bg-gray-500 text-white py-2 px-4 rounded font-bold hover:bg-gray-600">
+                    Cerrar
+                </button>
+                <button onclick="eliminarRanking()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded font-bold hover:bg-red-600">
+                    <i class="fas fa-trash mr-2"></i> Eliminar Ranking
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? `${window.location.protocol}//${window.location.hostname}:5000`
+            : window.location.origin;
+        const API_URL = `${API_BASE}/api`;
+        
+        let rankingActual = null;
+        let contadorRegistros = 0;
+
+        // Inicializar
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('admin_token');
+            if (!token) {
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            recargarRankings();
+        });
+
+        // Funciones auxiliares
+        function getHeaders() {
+            const token = localStorage.getItem('admin_token');
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            return headers;
+        }
+
+        async function fetchConAuth(url, options = {}) {
+            const response = await fetch(url, options);
+            if (response.status === 401) {
+                localStorage.removeItem('admin_token');
+                window.location.href = '/admin/login.html';
+                throw new Error('Token inválido o expirado');
+            }
+            return response;
+        }
+
+        function cerrarSesion() {
+            localStorage.removeItem('admin_token');
+            window.location.href = '/admin/login.html';
+        }
+
+        // Cargar rankings
+        async function recargarRankings() {
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings`, {
+                    headers: getHeaders()
+                });
+                const rankings = await response.json();
+                mostrarRankings(rankings);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('rankings-list').innerHTML = '<div class="p-6 text-red-600">Error al cargar rankings</div>';
+            }
+        }
+
+        function mostrarRankings(rankings) {
+            const container = document.getElementById('rankings-list');
+            
+            if (!rankings || rankings.length === 0) {
+                container.innerHTML = '<div class="p-6 text-gray-600 text-center">No hay rankings creados. Crea uno nuevo para comenzar.</div>';
+                return;
+            }
+
+            container.innerHTML = rankings.map(ranking => `
+                <div class="p-6 hover:bg-gray-50 cursor-pointer border-b" onclick="abrirRanking(${ranking.id})">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-gray-800">${ranking.titulo}</h3>
+                            <p class="text-gray-600 text-sm mt-1">${ranking.descripcion || 'Sin descripción'}</p>
+                            <p class="text-gray-500 text-xs mt-2">
+                                Creado: ${new Date(ranking.fecha_creacion).toLocaleDateString('es-ES')}
+                            </p>
+                        </div>
+                        <button onclick="event.stopPropagation(); eliminarRanking(${ranking.id})" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ml-4">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Modal: Crear Manual
+        function mostrarFormularioCrear() {
+            contadorRegistros = 0;
+            document.getElementById('input-titulo').value = '';
+            document.getElementById('input-descripcion').value = '';
+            document.getElementById('registros-list').innerHTML = '';
+            agregarCampoRegistro();
+            document.getElementById('modalCrear').classList.remove('hidden');
+        }
+
+        function cerrarModalCrear() {
+            document.getElementById('modalCrear').classList.add('hidden');
+        }
+
+        function agregarCampoRegistro() {
+            const container = document.getElementById('registros-list');
+            const id = contadorRegistros++;
+            
+            const div = document.createElement('div');
+            div.id = `registro-${id}`;
+            div.className = 'bg-gray-50 p-4 rounded-lg border border-gray-300';
+            div.innerHTML = `
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <input type="number" placeholder="Posición" class="px-3 py-2 border rounded registro-posicion" value="${id + 1}">
+                    <input type="text" placeholder="Nombre" class="px-3 py-2 border rounded registro-nombre" required>
+                    <input type="text" placeholder="Apellido" class="px-3 py-2 border rounded registro-apellido">
+                    <input type="text" placeholder="Tiempo (00:00:00)" class="px-3 py-2 border rounded registro-tiempo">
+                    <input type="text" placeholder="Categoría" class="px-3 py-2 border rounded registro-categoria">
+                    <input type="text" placeholder="Equipo/Club" class="px-3 py-2 border rounded registro-equipo">
+                </div>
+                <button type="button" onclick="document.getElementById('registro-${id}').remove()" class="bg-red-500 text-white px-3 py-1 rounded text-sm mt-2 hover:bg-red-600">
+                    Eliminar
+                </button>
+            `;
+            container.appendChild(div);
+        }
+
+        async function guardarRankingManual(e) {
+            e.preventDefault();
+            
+            const titulo = document.getElementById('input-titulo').value;
+            const descripcion = document.getElementById('input-descripcion').value;
+            
+            const registros = [];
+            document.querySelectorAll('#registros-list > div').forEach(div => {
+                const posicion = div.querySelector('.registro-posicion').value;
+                const nombre = div.querySelector('.registro-nombre').value;
+                const apellido = div.querySelector('.registro-apellido').value;
+                const tiempo = div.querySelector('.registro-tiempo').value;
+                const categoria = div.querySelector('.registro-categoria').value;
+                const equipo = div.querySelector('.registro-equipo').value;
+                
+                if (nombre) {
+                    registros.push({
+                        posicion: parseInt(posicion) || registros.length + 1,
+                        nombre,
+                        apellido,
+                        tiempo: tiempo || null,
+                        categoria: categoria || null,
+                        equipo: equipo || null
+                    });
+                }
+            });
+
+            if (!titulo || registros.length === 0) {
+                alert('Por favor completa el título y al menos un corredor');
+                return;
+            }
+
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/crear`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        titulo,
+                        descripcion,
+                        carrera_id: 1,
+                        registros
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Ranking creado exitosamente');
+                    cerrarModalCrear();
+                    recargarRankings();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al crear el ranking');
+            }
+        }
+
+        // Modal: PDF
+        function mostrarFormularioPDF() {
+            document.getElementById('pdf-titulo').value = '';
+            document.getElementById('pdf-descripcion').value = '';
+            document.getElementById('file-input').value = '';
+            document.getElementById('file-name').textContent = '';
+            document.getElementById('modalPDF').classList.remove('hidden');
+        }
+
+        function cerrarModalPDF() {
+            document.getElementById('modalPDF').classList.add('hidden');
+        }
+
+        function actualizarNombreArchivo() {
+            const file = document.getElementById('file-input').files[0];
+            if (file) {
+                document.getElementById('file-name').textContent = file.name;
+            }
+        }
+
+        async function guardarRankingPDF(e) {
+            e.preventDefault();
+            
+            const titulo = document.getElementById('pdf-titulo').value;
+            const descripcion = document.getElementById('pdf-descripcion').value;
+            const file = document.getElementById('file-input').files[0];
+
+            if (!titulo || !file) {
+                alert('Por favor completa el título y selecciona un archivo PDF');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('titulo', titulo);
+            formData.append('descripcion', descripcion);
+            formData.append('archivo_pdf', file);
+
+            try {
+                document.getElementById('btn-guardar-pdf').disabled = true;
+                document.getElementById('btn-guardar-pdf').textContent = 'Procesando...';
+
+                const token = localStorage.getItem('admin_token');
+                const response = await fetch(`${API_URL}/rankings/crear-desde-pdf`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    window.location.href = '/admin/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Ranking creado exitosamente con ${data.registros_count} registros`);
+                    cerrarModalPDF();
+                    recargarRankings();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al procesar el PDF');
+            } finally {
+                document.getElementById('btn-guardar-pdf').disabled = false;
+                document.getElementById('btn-guardar-pdf').textContent = 'Cargar Ranking';
+            }
+        }
+
+        // Modal: Editar/Ver
+        async function abrirRanking(rankingId) {
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/${rankingId}`, {
+                    headers: getHeaders()
+                });
+                const ranking = await response.json();
+                rankingActual = ranking;
+                
+                document.getElementById('modal-titulo-ranking').textContent = ranking.titulo;
+                document.getElementById('edit-titulo').value = ranking.titulo;
+                document.getElementById('edit-descripcion').value = ranking.descripcion || '';
+                
+                mostrarRegistrosRanking(ranking.registros);
+                document.getElementById('modalEditar').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar el ranking');
+            }
+        }
+
+        function mostrarRegistrosRanking(registros) {
+            const container = document.getElementById('registros-ranking-list');
+            
+            if (!registros || registros.length === 0) {
+                container.innerHTML = '<tr><td colspan="7" class="border px-4 py-4 text-center text-gray-600">Sin registros</td></tr>';
+                return;
+            }
+
+            container.innerHTML = registros.map((reg, idx) => `
+                <tr class="hover:bg-gray-50">
+                    <td class="border px-4 py-2"><input type="number" value="${reg.posicion}" class="w-20 px-2 py-1 border rounded" id="pos-${idx}"></td>
+                    <td class="border px-4 py-2"><input type="text" value="${reg.nombre}" class="w-full px-2 py-1 border rounded" id="nombre-${idx}"></td>
+                    <td class="border px-4 py-2"><input type="text" value="${reg.apellido || ''}" class="w-full px-2 py-1 border rounded" id="apellido-${idx}"></td>
+                    <td class="border px-4 py-2"><input type="text" value="${reg.tiempo || ''}" class="w-full px-2 py-1 border rounded" id="tiempo-${idx}"></td>
+                    <td class="border px-4 py-2"><input type="text" value="${reg.categoria || ''}" class="w-full px-2 py-1 border rounded" id="categoria-${idx}"></td>
+                    <td class="border px-4 py-2"><input type="text" value="${reg.equipo || ''}" class="w-full px-2 py-1 border rounded" id="equipo-${idx}"></td>
+                    <td class="border px-4 py-2 text-center">
+                        <button onclick="guardarRegistroEditado(${idx}, ${reg.id})" class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 mr-1">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button onclick="eliminarRegistroRanking(${reg.id})" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function guardarRegistroEditado(idx, registroId) {
+            const posicion = document.getElementById(`pos-${idx}`).value;
+            const nombre = document.getElementById(`nombre-${idx}`).value;
+            const apellido = document.getElementById(`apellido-${idx}`).value;
+            const tiempo = document.getElementById(`tiempo-${idx}`).value;
+            const categoria = document.getElementById(`categoria-${idx}`).value;
+            const equipo = document.getElementById(`equipo-${idx}`).value;
+            const dorsal = document.getElementById(`dorsal-${idx}`).value;
+
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/${rankingActual.id}/registros/${registroId}`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        posicion,
+                        nombre,
+                        apellido,
+                        tiempo,
+                        categoria,
+                        equipo,
+                        dorsal
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Registro actualizado');
+                    abrirRanking(rankingActual.id);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al actualizar el registro');
+            }
+        }
+
+        async function eliminarRegistroRanking(registroId) {
+            if (!confirm('¿Estás seguro de que deseas eliminar este registro?')) return;
+
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/${rankingActual.id}/registros/${registroId}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Registro eliminado');
+                    abrirRanking(rankingActual.id);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al eliminar el registro');
+            }
+        }
+
+        function agregarRegistroAlRanking() {
+            if (!rankingActual) return;
+            
+            // Aquí podría ir un modal adicional, pero por ahora haremos simple
+            const nombre = prompt('Nombre del corredor:');
+            if (!nombre) return;
+            
+            const apellido = prompt('Apellido (opcional):');
+            const tiempo = prompt('Tiempo (opcional):');
+            const categoria = prompt('Categoría (opcional):');
+            const equipo = prompt('Equipo (opcional):');
+
+            agregarRegistroAPI(nombre, apellido, tiempo, categoria, equipo);
+        }
+
+        async function agregarRegistroAPI(nombre, apellido, tiempo, categoria, equipo) {
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/${rankingActual.id}/registros`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        nombre,
+                        apellido: apellido || null,
+                        tiempo: tiempo || null,
+                        categoria: categoria || null,
+                        equipo: equipo || null
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    abrirRanking(rankingActual.id);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al agregar el registro');
+            }
+        }
+
+        async function guardarCambiosRanking() {
+            const titulo = document.getElementById('edit-titulo').value;
+            const descripcion = document.getElementById('edit-descripcion').value;
+
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/${rankingActual.id}`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        titulo,
+                        descripcion
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Ranking actualizado');
+                    recargarRankings();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al actualizar el ranking');
+            }
+        }
+
+        async function eliminarRanking(rankingId = null) {
+            const id = rankingId || rankingActual?.id;
+            if (!id) return;
+
+            if (!confirm('¿Estás seguro de que deseas eliminar este ranking y todos sus registros? Esta acción no se puede deshacer.')) {
+                return;
+            }
+
+            try {
+                const response = await fetchConAuth(`${API_URL}/rankings/${id}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Ranking eliminado exitosamente');
+                    cerrarModalEditar();
+                    recargarRankings();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al eliminar el ranking');
+            }
+        }
+
+        function cerrarModalEditar() {
+            document.getElementById('modalEditar').classList.add('hidden');
+            rankingActual = null;
+        }
+    </script>
+</body>
+</html>
